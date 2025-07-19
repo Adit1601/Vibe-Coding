@@ -1,0 +1,54 @@
+{
+  "env": {
+    "browser": true,
+    "es2021": true,
+    "webextensions": true
+  },
+  "extends": [
+    "eslint:recommended"
+  ],
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module"
+  },
+  "rules": {
+    // Code Quality
+    "no-unused-vars": "warn",
+    "no-console": "warn",
+    "no-debugger": "error",
+    "no-alert": "warn",
+    
+    // Best Practices
+    "eqeqeq": "error",
+    "curly": "error",
+    "no-eval": "error",
+    "no-implied-eval": "error",
+    "no-new-func": "error",
+    "no-script-url": "error",
+    
+    // Variables
+    "no-undef": "error",
+    "no-unused-expressions": "error",
+    
+    // Stylistic
+    "indent": ["error", 2],
+    "quotes": ["error", "single"],
+    "semi": ["error", "always"],
+    "comma-dangle": ["error", "never"],
+    "no-trailing-spaces": "error",
+    "eol-last": "error",
+    
+    // Chrome Extension Specific
+    "no-var": "error",
+    "prefer-const": "error",
+    "prefer-arrow-callback": "error",
+    "arrow-spacing": "error",
+    
+    // Documentation
+    "valid-jsdoc": "warn",
+    "require-jsdoc": "warn"
+  },
+  "globals": {
+    "chrome": "readonly"
+  }
+} 

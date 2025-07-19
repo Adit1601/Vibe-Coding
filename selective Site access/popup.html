@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Selective Site Access</title>
+    <meta charset="UTF-8">
+    <style>
+      :root {
+        --bg: #181a1b;
+        --fg: #fff;
+        --input-bg: #222;
+        --input-fg: #fff;
+        --border: #333;
+        --accent: #1976d2;
+        --accent-hover: #1565c0;
+        --success: #4caf50;
+        --error: #e74c3c;
+        --yellow: #ffd600;
+        --card-bg: #23272a;
+        --button-gradient: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+        --button-gradient-hover: linear-gradient(135deg, #1565c0 0%, #0d47a1 100%);
+        --resume-gradient: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+        --resume-gradient-hover: linear-gradient(135deg, #f7931e 0%, #e67e22 100%);
+      }
+      
+      * {
+        box-sizing: border-box;
+      }
+      
+      body { 
+        min-width: 320px; 
+        min-height: 260px; 
+        font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; 
+        background: var(--bg); 
+        color: var(--fg); 
+        margin: 0; 
+        padding: 0;
+        line-height: 1.5;
+      }
+      
+      h1 { 
+        font-size: 1.3em; 
+        margin: 0; 
+        padding: 18px 0 10px 0; 
+        text-align: center; 
+        letter-spacing: 0.5px; 
+        font-weight: 600;
+        background: linear-gradient(135deg, #fff 0%, #e3f2fd 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      
+      h2 { 
+        margin-top: 18px; 
+        font-size: 1.08em; 
+        letter-spacing: 0.2px;
+        font-weight: 500;
+        color: #e3f2fd;
+      }
+      
+      .card { 
+        background: var(--card-bg); 
+        border-radius: 12px; 
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15); 
+        padding: 16px 18px; 
+        margin: 12px 12px 0 12px; 
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid rgba(255,255,255,0.05);
+      }
+      
+      .card:hover { 
+        box-shadow: 0 8px 32px rgba(25,118,210,0.2);
+        transform: translateY(-2px);
+        border-color: rgba(25,118,210,0.2);
+      }
+      
+      ul { 
+        padding-left: 20px; 
+        margin: 8px 0 0 0; 
+      }
+      
+      li { 
+        margin-bottom: 8px; 
+        transition: all 0.3s ease;
+        border-radius: 6px; 
+        padding: 6px 8px;
+        background: rgba(255,255,255,0.02);
+        border: 1px solid rgba(255,255,255,0.05);
+      }
+      
+      li:hover {
+        background: rgba(25,118,210,0.1);
+        border-color: rgba(25,118,210,0.3);
+        transform: translateX(4px);
+      }
+      
+      li.removed { 
+        background: var(--error); 
+        color: #fff; 
+        animation: fadeOut 0.7s forwards;
+        border-color: var(--error);
+      }
+      
+      @keyframes fadeOut { 
+        0% { opacity: 1; transform: scale(1); } 
+        100% { opacity: 0; height: 0; margin: 0; padding: 0; transform: scale(0.8); } 
+      }
+      
+      input[type="text"], input[type="password"], input[type="number"] { 
+        width: 70%; 
+        background: var(--input-bg); 
+        color: var(--input-fg); 
+        border: 2px solid var(--border); 
+        border-radius: 8px; 
+        padding: 8px 12px; 
+        margin-bottom: 8px; 
+        transition: all 0.3s ease;
+        font-size: 0.95em;
+      }
+      
+      input[type="text"]:focus, input[type="password"]:focus, input[type="number"]:focus { 
+        border: 2px solid var(--accent); 
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(25,118,210,0.1);
+        transform: translateY(-1px);
+      }
+      
+      button { 
+        margin-left: 10px; 
+        background: var(--button-gradient);
+        color: #fff; 
+        border: none; 
+        border-radius: 8px; 
+        padding: 8px 16px; 
+        cursor: pointer; 
+        font-size: 0.95em; 
+        font-weight: 500;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 2px 8px rgba(25,118,210,0.2);
+        position: relative;
+        overflow: hidden;
+      }
+      
+      button::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+        transition: left 0.5s;
+      }
+      
+      button:hover::before {
+        left: 100%;
+      }
+      
+      button:hover { 
+        background: var(--button-gradient-hover);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(25,118,210,0.3);
+      }
+      
+      button:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 8px rgba(25,118,210,0.2);
+      }
+      
+      #resume-btn {
+        background: var(--resume-gradient);
+        box-shadow: 0 2px 8px rgba(255,107,53,0.3);
+        margin: 8px auto;
+        display: block;
+        animation: pulse 2s infinite;
+      }
+      
+      #resume-btn:hover {
+        background: var(--resume-gradient-hover);
+        box-shadow: 0 4px 16px rgba(255,107,53,0.4);
+      }
+      
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+      }
+      
+      #pause-section { 
+        margin-bottom: 18px; 
+        text-align: center; 
+      }
+      
+      #pause-message { 
+        margin: 16px 0 0 0; 
+        color: var(--yellow); 
+        font-size: 1.08em; 
+        text-align: center;
+        font-weight: 500;
+        text-shadow: 0 0 10px rgba(255,214,0,0.3);
+        animation: glow 2s ease-in-out infinite alternate;
+      }
+      
+      @keyframes glow {
+        from { text-shadow: 0 0 10px rgba(255,214,0,0.3); }
+        to { text-shadow: 0 0 20px rgba(255,214,0,0.6); }
+      }
+      
+      #lock-screen { 
+        display: none; 
+        text-align: center; 
+        margin-top: 40px; 
+      }
+      
+      #lock-screen input[type="password"] { 
+        width: 80%; 
+        margin-bottom: 10px; 
+      }
+      
+      #toast-container { 
+        position: fixed; 
+        bottom: 10px; 
+        left: 0; 
+        right: 0; 
+        z-index: 999; 
+        text-align: center; 
+      }
+      
+      select {
+        background: var(--input-bg);
+        color: var(--input-fg);
+        border: 2px solid var(--border);
+        border-radius: 6px;
+        padding: 6px 10px;
+        margin: 0 8px;
+        transition: all 0.3s ease;
+        cursor: pointer;
+      }
+      
+      select:focus {
+        border-color: var(--accent);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(25,118,210,0.1);
+      }
+      
+      label {
+        font-weight: 500;
+        color: #e3f2fd;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Selective Site Access</h1>
+    <div id="pause-message" style="margin: 16px 0 0 0; color: #ffd600; font-size: 1.08em; text-align: center;"></div>
+    <div id="pause-progress-container" style="width: 90%; margin: 8px auto 0 auto; height: 8px; background: #333; border-radius: 6px; overflow: hidden; display: none;">
+      <div id="pause-progress" style="height: 100%; width: 0; background: linear-gradient(90deg, #ffd600 0%, #ff6b35 100%); transition: width 0.5s;"></div>
+    </div>
+    <button id="resume-btn" style="display:none; margin: 8px auto; text-align: center;">Resume Now</button>
+    <div id="lock-screen">
+      <h2>Extension Locked</h2>
+      <form id="unlock-form">
+        <input type="password" id="unlock-password" placeholder="Enter password to unlock" required />
+        <button type="submit">Unlock</button>
+      </form>
+      <button id="show-change-password" style="margin-top:10px;">Change Password</button>
+      <form id="change-password-form" style="display:none; margin-top:10px;">
+        <input type="password" id="current-password" placeholder="Current password" required /><br>
+        <input type="password" id="new-password" placeholder="New password" required /><br>
+        <input type="password" id="confirm-password" placeholder="Confirm new password" required /><br>
+        <button type="submit">Set Password</button>
+        <button type="button" id="cancel-change-password">Cancel</button>
+      </form>
+      <div id="unlock-error" style="color:#e74c3c;margin-top:8px;font-size:0.95em;"></div>
+    </div>
+    <div id="pause-section" class="card">
+      <label for="pause-value" style="font-size:1em;">Pause Blocking for:</label>
+      <input type="number" id="pause-value" min="1" value="1" style="width:60px;margin:0 6px;" />
+      <select id="pause-unit" style="margin:0 8px;">
+        <option value="min">min(s)</option>
+        <option value="hour">hour(s)</option>
+      </select>
+      <button id="pause-btn">Pause</button>
+    </div>
+    <div id="main-ui">
+      <div class="card" style="text-align:center;">
+        <label style="font-size:1em;">
+          <input type="checkbox" id="focus-mode-toggle" style="vertical-align:middle; margin-right:8px;" />
+          Focus Mode (Block everything in blocklist, ignore allowlist)
+        </label>
+      </div>
+      <div class="card">
+        <h2>Blocked Domains</h2>
+        <form id="block-domain-form">
+          <input type="text" id="block-domain-input" placeholder="e.g. youtube.com" required />
+          <button type="submit">Add</button>
+        </form>
+        <ul id="blocked-domains-list"></ul>
+      </div>
+      <div class="card">
+        <h2>Allowlist URLs</h2>
+        <form id="allowlist-url-form">
+          <input type="text" id="allowlist-url-input" placeholder="e.g. https://www.youtube.com/watch?v=abc123" required />
+          <button type="submit">Add</button>
+        </form>
+        <ul id="allowlist-urls-list"></ul>
+      </div>
+      <div class="card" style="text-align:center;">
+        <h2 style="margin-top:0;">Backup & Restore</h2>
+        <button id="export-btn" style="margin-right:10px;">Export Lists</button>
+        <input type="file" id="import-file" accept="application/json" style="display:none;" />
+        <button id="import-btn">Import Lists</button>
+      </div>
+    </div>
+    <div id="toast-container"></div>
+    <script src="popup.js"></script>
+  </body>
+</html> 
