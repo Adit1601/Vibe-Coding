@@ -50,28 +50,42 @@
         background-clip: text;
       }
       
-      h2 { 
-        margin-top: 18px; 
-        font-size: 1.08em; 
-        letter-spacing: 0.2px;
+      h2, .auto-refresh-section h2 {
+        font-size: 1.18em;
         font-weight: 500;
         color: #e3f2fd;
+        text-align: left;
+        margin-left: 0;
+        margin-top: 0;
+        margin-bottom: 18px;
+        padding-left: 0;
       }
-      
-      .card { 
-        background: var(--card-bg); 
-        border-radius: 12px; 
-        box-shadow: 0 4px 20px rgba(0,0,0,0.15); 
-        padding: 16px 18px; 
-        margin: 12px 12px 0 12px; 
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      .card, .lock-card {
+        background: var(--card-bg);
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        padding: 20px 24px 16px 24px;
+        margin: 24px auto 0 auto;
         border: 1px solid rgba(255,255,255,0.05);
+        width: 100%;
+        max-width: 440px;
+        box-sizing: border-box;
       }
-      
-      .card:hover { 
-        box-shadow: 0 8px 32px rgba(25,118,210,0.2);
-        transform: translateY(-2px);
-        border-color: rgba(25,118,210,0.2);
+      .lock-card {
+        text-align: center;
+      }
+      .time-input-row, #block-domain-form, #allowlist-url-form {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 0 0 16px 0;
+        padding-left: 0;
+      }
+      .time-input-row button, #block-domain-form button, #allowlist-url-form button {
+        margin-left: auto;
+        margin-right: 0;
+        min-width: 90px;
+        padding: 8px 16px;
       }
       
       ul { 
@@ -206,18 +220,25 @@
       }
       
       #lock-screen { 
-        display: none;
-        margin: 40px auto 0 auto;
-        max-width: 400px;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        min-height: 0;
+        margin: 0;
+        padding: 0;
+        width: 100%;
       }
       .lock-card {
         background: var(--card-bg);
         border-radius: 12px;
         box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-        padding: 24px 24px 18px 24px;
-        margin: 0 auto;
+        padding: 20px 24px 16px 24px;
+        margin: 32px auto 0 auto;
         border: 1px solid rgba(255,255,255,0.05);
         text-align: center;
+        max-width: 400px;
+        width: 100%;
+        box-sizing: border-box;
       }
       .lock-card h2 {
         margin-top: 0;
@@ -275,12 +296,14 @@
       }
       
       .auto-refresh-section {
-        border-left: 3px solid var(--accent);
-        padding-left: 12px;
-        margin-left: 8px;
+        /* No border, no extra left padding, no margin-left */
+        /* Just use .card styles for consistency */
       }
       .auto-refresh-section h2 {
         color: var(--accent);
+        text-align: left;
+        margin-left: 0;
+        padding-left: 0;
       }
       .time-input-row {
         display: flex;
@@ -312,12 +335,14 @@
         margin-bottom: 18px;
       }
       .auto-refresh-section {
-        border-left: 3px solid var(--accent);
-        padding-left: 12px;
-        margin-left: 8px;
+        /* No border, no extra left padding, no margin-left */
+        /* Just use .card styles for consistency */
       }
       .auto-refresh-section h2 {
         color: var(--accent);
+        text-align: left;
+        margin-left: 0;
+        padding-left: 0;
       }
       /* Unified button style for all primary actions */
       #refresh-now-btn, #pause-btn {
@@ -356,6 +381,35 @@
         color: var(--fg);
         font-size: 1.1em;
       }
+      .custom-tooltip {
+        position: relative;
+        display: inline-block;
+        margin-left: 6px;
+      }
+      .custom-tooltip .custom-tooltip-text {
+        visibility: hidden;
+        width: 260px;
+        background: #23272a;
+        color: #fff;
+        text-align: left;
+        border-radius: 6px;
+        padding: 8px 12px;
+        position: absolute;
+        z-index: 1000;
+        bottom: 125%;
+        left: 50%;
+        transform: translateX(-50%);
+        opacity: 0;
+        transition: opacity 0.2s;
+        font-size: 0.98em;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+        pointer-events: none;
+        white-space: pre-line;
+      }
+      .custom-tooltip:hover .custom-tooltip-text {
+        visibility: visible;
+        opacity: 1;
+      }
     </style>
   </head>
   <body>
@@ -391,8 +445,9 @@
       </div>
     </div>
     <div id="pause-section" class="card">
+      <h2>Pause Blocking</h2>
       <div class="time-input-row">
-        <span class="section-label">Pause Blocking for:</span>
+        <span class="section-label" style="min-width:unset;font-weight:400;">For:</span>
         <input type="number" id="pause-value" min="1" value="1" />
         <select id="pause-unit">
           <option value="min">min(s)</option>
@@ -403,10 +458,16 @@
     </div>
     <div id="main-ui">
       <div class="card" style="text-align:center;">
-        <label style="font-size:1em;">
-          <input type="checkbox" id="focus-mode-toggle" style="vertical-align:middle; margin-right:8px;" />
-          Focus Mode (Block everything in blocklist, ignore allowlist)
-        </label>
+        <div class="focus-mode-row">
+          <label style="font-size:1em; margin-bottom:0; font-weight:500;">
+            <input type="checkbox" id="focus-mode-toggle" style="vertical-align:middle; margin-right:8px;" />
+            Focus Mode
+          </label>
+          <span class="custom-tooltip">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="8"/></svg>
+            <span class="custom-tooltip-text">Block everything in blocklist, ignore allowlist</span>
+          </span>
+        </div>
       </div>
       <div class="card">
         <h2>Blocked Domains</h2>
@@ -414,6 +475,7 @@
           <input type="text" id="block-domain-input" placeholder="e.g. youtube.com" required />
           <button type="submit">Add</button>
         </form>
+        <div class="input-error" id="block-domain-error"></div>
         <ul id="blocked-domains-list"></ul>
       </div>
       <div class="card">
@@ -422,6 +484,7 @@
           <input type="text" id="allowlist-url-input" placeholder="e.g. https://www.youtube.com/watch?v=abc123" required />
           <button type="submit">Add</button>
         </form>
+        <div class="input-error" id="allowlist-url-error"></div>
         <ul id="allowlist-urls-list"></ul>
       </div>
       <div class="card auto-refresh-section">
@@ -450,6 +513,6 @@
       </div>
     </div>
     <div id="toast-container"></div>
-    <script src="popup.js"></script>
+    <script type="module" src="main.js"></script>
   </body>
 </html> 
