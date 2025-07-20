@@ -9,6 +9,7 @@ A powerful Chrome extension for selective domain blocking with allowlist functio
 - **Password Protection**: Lock the extension with a customizable password
 - **Pause Blocking**: Temporarily disable blocking for specified time periods
 - **Focus Mode**: Ignore allowlist and block all domains in blocklist
+- **Auto-Refresh**: Automatically refresh tabs with specific domains at scheduled intervals
 - **Backup & Restore**: Export and import your blocklist and allowlist
 - **Dark Mode UI**: Modern, elegant dark-themed interface
 - **SPA Navigation Support**: Handles YouTube and other single-page applications
@@ -169,10 +170,35 @@ selective-site-access/
   pauseUntil: 0,
   pauseStart: 0,
   focusMode: false,
+  autoRefreshEnabled: true,
+  autoRefreshInterval: 3600000, // 1 hour in milliseconds
+  autoRefreshDomains: ['youtube.com'],
   blockCount: 42,
   lastBlockedUrl: 'https://youtube.com/blocked-video'
 }
 ```
+
+### Auto-Refresh Feature
+
+The auto-refresh feature allows you to automatically refresh tabs containing specific domains at regular intervals. This is useful for:
+
+- **Keeping content fresh**: Automatically refresh news sites or social media feeds
+- **Session management**: Refresh pages that require periodic updates
+- **Focus maintenance**: Refresh distracting sites to break engagement
+
+#### How to Use Auto-Refresh
+
+1. **Enable Auto-Refresh**: Check the "Enable Auto-Refresh" checkbox
+2. **Set Interval**: Choose how often to refresh (in minutes, minimum 1 minute)
+3. **Add Domains**: Add domains you want to auto-refresh (e.g., `youtube.com`)
+4. **Manual Refresh**: Click "Refresh Now" to immediately refresh matching tabs
+
+#### Auto-Refresh Configuration
+
+- **Default Interval**: 60 minutes (1 hour)
+- **Supported Domains**: Any domain format (e.g., `youtube.com`, `www.facebook.com`)
+- **Tab Detection**: Automatically detects all open tabs with matching domains
+- **Background Operation**: Works even when popup is closed
 
 ## Troubleshooting
 

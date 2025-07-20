@@ -206,14 +206,41 @@
       }
       
       #lock-screen { 
-        display: none; 
-        text-align: center; 
-        margin-top: 40px; 
+        display: none;
+        margin: 40px auto 0 auto;
+        max-width: 400px;
       }
-      
-      #lock-screen input[type="password"] { 
-        width: 80%; 
-        margin-bottom: 10px; 
+      .lock-card {
+        background: var(--card-bg);
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        padding: 24px 24px 18px 24px;
+        margin: 0 auto;
+        border: 1px solid rgba(255,255,255,0.05);
+        text-align: center;
+      }
+      .lock-card h2 {
+        margin-top: 0;
+        margin-bottom: 18px;
+      }
+      .lock-card .input-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-bottom: 18px;
+      }
+      .lock-card input[type="password"] {
+        width: 70px;
+        flex: 1;
+        min-width: 0;
+        margin-bottom: 0;
+      }
+      .lock-card .button-row {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        margin-top: 10px;
       }
       
       #toast-container { 
@@ -246,6 +273,89 @@
         font-weight: 500;
         color: #e3f2fd;
       }
+      
+      .auto-refresh-section {
+        border-left: 3px solid var(--accent);
+        padding-left: 12px;
+        margin-left: 8px;
+      }
+      .auto-refresh-section h2 {
+        color: var(--accent);
+      }
+      .time-input-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 10px 0 10px 0;
+      }
+      .time-input-row input[type="number"],
+      .time-input-row select {
+        margin-right: 8px;
+      }
+      .time-input-row button {
+        margin-left: auto;
+        min-width: 90px;
+      }
+      .time-input-row input[type="number"] {
+        width: 70px;
+        margin-right: 8px;
+      }
+      .section-label {
+        font-size: 1em;
+        font-weight: 500;
+        color: #e3f2fd;
+        margin-bottom: 2px;
+        margin-right: 10px;
+        min-width: 120px;
+      }
+      .card {
+        margin-bottom: 18px;
+      }
+      .auto-refresh-section {
+        border-left: 3px solid var(--accent);
+        padding-left: 12px;
+        margin-left: 8px;
+      }
+      .auto-refresh-section h2 {
+        color: var(--accent);
+      }
+      /* Unified button style for all primary actions */
+      #refresh-now-btn, #pause-btn {
+        background: var(--button-gradient);
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 0.95em;
+        font-weight: 500;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 2px 8px rgba(25,118,210,0.2);
+        position: relative;
+        overflow: hidden;
+      }
+      #refresh-now-btn:hover, #pause-btn:hover {
+        background: var(--button-gradient-hover);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(25,118,210,0.3);
+      }
+      #refresh-now-btn:active, #pause-btn:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 8px rgba(25,118,210,0.2);
+      }
+      #pause-btn {
+        margin-left: 0;
+      }
+      .show-password-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        vertical-align: middle;
+        margin-left: 4px;
+        padding: 0 4px;
+        color: var(--fg);
+        font-size: 1.1em;
+      }
     </style>
   </head>
   <body>
@@ -256,29 +366,40 @@
     </div>
     <button id="resume-btn" style="display:none; margin: 8px auto; text-align: center;">Resume Now</button>
     <div id="lock-screen">
-      <h2>Extension Locked</h2>
-      <form id="unlock-form">
-        <input type="password" id="unlock-password" placeholder="Enter password to unlock" required />
-        <button type="submit">Unlock</button>
-      </form>
-      <button id="show-change-password" style="margin-top:10px;">Change Password</button>
-      <form id="change-password-form" style="display:none; margin-top:10px;">
-        <input type="password" id="current-password" placeholder="Current password" required /><br>
-        <input type="password" id="new-password" placeholder="New password" required /><br>
-        <input type="password" id="confirm-password" placeholder="Confirm new password" required /><br>
-        <button type="submit">Set Password</button>
-        <button type="button" id="cancel-change-password">Cancel</button>
-      </form>
-      <div id="unlock-error" style="color:#e74c3c;margin-top:8px;font-size:0.95em;"></div>
+      <div class="lock-card">
+        <h2>Extension Locked</h2>
+        <form id="unlock-form">
+          <div class="input-row">
+            <input type="password" id="unlock-password" placeholder="Enter password to unlock" required />
+            <button type="button" id="toggle-password-visibility" class="show-password-btn" aria-label="Show password">
+              <svg id="eye-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/></svg>
+            </button>
+          </div>
+          <div class="button-row">
+            <button type="submit">Unlock</button>
+            <button type="button" id="show-change-password">Change Password</button>
+          </div>
+        </form>
+        <form id="change-password-form" style="display:none; margin-top:10px;">
+          <input type="password" id="current-password" placeholder="Current password" required /><br>
+          <input type="password" id="new-password" placeholder="New password" required /><br>
+          <input type="password" id="confirm-password" placeholder="Confirm new password" required /><br>
+          <button type="submit">Set Password</button>
+          <button type="button" id="cancel-change-password">Cancel</button>
+        </form>
+        <div id="unlock-error" style="color:#e74c3c;margin-top:8px;font-size:0.95em;"></div>
+      </div>
     </div>
     <div id="pause-section" class="card">
-      <label for="pause-value" style="font-size:1em;">Pause Blocking for:</label>
-      <input type="number" id="pause-value" min="1" value="1" style="width:60px;margin:0 6px;" />
-      <select id="pause-unit" style="margin:0 8px;">
-        <option value="min">min(s)</option>
-        <option value="hour">hour(s)</option>
-      </select>
-      <button id="pause-btn">Pause</button>
+      <div class="time-input-row">
+        <span class="section-label">Pause Blocking for:</span>
+        <input type="number" id="pause-value" min="1" value="1" />
+        <select id="pause-unit">
+          <option value="min">min(s)</option>
+          <option value="hour">hour(s)</option>
+        </select>
+        <button id="pause-btn">Pause</button>
+      </div>
     </div>
     <div id="main-ui">
       <div class="card" style="text-align:center;">
@@ -302,6 +423,24 @@
           <button type="submit">Add</button>
         </form>
         <ul id="allowlist-urls-list"></ul>
+      </div>
+      <div class="card auto-refresh-section">
+        <h2>Auto-Refresh Settings</h2>
+        <div style="margin-bottom: 12px;">
+          <label style="font-size:1em;">
+            <input type="checkbox" id="auto-refresh-toggle" style="vertical-align:middle; margin-right:8px;" />
+            Enable Auto-Refresh
+          </label>
+        </div>
+        <div class="time-input-row">
+          <span class="section-label">Refresh Interval:</span>
+          <input type="number" id="auto-refresh-interval" min="1" value="60" />
+          <select id="auto-refresh-unit">
+            <option value="min">min(s)</option>
+            <option value="hour">hour(s)</option>
+          </select>
+          <button id="refresh-now-btn">Refresh Now</button>
+        </div>
       </div>
       <div class="card" style="text-align:center;">
         <h2 style="margin-top:0;">Backup & Restore</h2>

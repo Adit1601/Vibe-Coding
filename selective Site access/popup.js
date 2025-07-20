@@ -13,6 +13,9 @@ const STORAGE_KEYS = {
   pauseUntil: 'pauseUntil',
   pauseStart: 'pauseStart',
   focusMode: 'focusMode',
+  autoRefreshEnabled: 'autoRefreshEnabled',
+  autoRefreshInterval: 'autoRefreshInterval',
+  autoRefreshDomains: 'autoRefreshDomains',
 };
 
 /**
@@ -143,6 +146,46 @@ function getFocusMode(callback) {
  */
 function setFocusMode(enabled, callback) {
   chrome.storage.sync.set({ [STORAGE_KEYS.focusMode]: enabled }, callback);
+}
+
+/**
+ * Get auto-refresh configuration from storage.
+ * @param {function} callback
+ */
+function getAutoRefreshConfig(callback) {
+  chrome.storage.sync.get([
+    STORAGE_KEYS.autoRefreshEnabled,
+    STORAGE_KEYS.autoRefreshInterval
+  ], (data) => {
+    callback({
+      enabled: !!data[STORAGE_KEYS.autoRefreshEnabled],
+      interval: data[STORAGE_KEYS.autoRefreshInterval] || 3600000
+    });
+  });
+}
+
+/**
+ * Set auto-refresh configuration in storage.
+ * @param {boolean} enabled
+ * @param {number} interval
+ * @param {Array} domains
+ * @param {function} callback
+ */
+function setAutoRefreshConfig(enabled, interval, callback) {
+  chrome.runtime.sendMessage({
+    type: 'setAutoRefreshConfig',
+    enabled: enabled,
+    interval: interval,
+    domains: [] // ignored in background now
+  }, callback);
+}
+
+/**
+ * Trigger immediate refresh of matching tabs.
+ * @param {function} callback
+ */
+function refreshNow(callback) {
+  chrome.runtime.sendMessage({ type: 'refreshNow' }, callback);
 }
 
 // =====================
@@ -276,8 +319,11 @@ function lockExtension() {
  * Unlock the extension.
  */
 function unlockExtension() {
-  setLocked(false);
-  showMainUI();
+  setLocked(false, () => {
+    showMainUI();
+    document.getElementById('main-ui').style.display = '';
+    document.getElementById('lock-screen').style.display = 'none';
+  });
 }
 
 // =====================
@@ -420,6 +466,134 @@ function removeAllowlistUrl(idx) {
   });
 }
 
+// =====================
+// Auto-Refresh UI Functions
+// =====================
+/**
+ * Update the auto-refresh configuration UI.
+ */
+function updateAutoRefreshUI() {
+  getAutoRefreshConfig(({ enabled, interval }) => {
+    const toggle = document.getElementById('auto-refresh-toggle');
+    if (toggle) toggle.checked = enabled;
+    const intervalInput = document.getElementById('auto-refresh-interval');
+    const unitInput = document.getElementById('auto-refresh-unit');
+    if (intervalInput && unitInput) setTimeInput(interval, intervalInput, unitInput);
+  });
+}
+
+// =====================
+// DOM Elements (cache for performance)
+// =====================
+const el = {
+  pauseValue: document.getElementById('pause-value'),
+  pauseUnit: document.getElementById('pause-unit'),
+  pauseBtn: document.getElementById('pause-btn'),
+  autoRefreshToggle: document.getElementById('auto-refresh-toggle'),
+  autoRefreshInterval: document.getElementById('auto-refresh-interval'),
+  autoRefreshUnit: document.getElementById('auto-refresh-unit'),
+  refreshNowBtn: document.getElementById('refresh-now-btn'),
+  unlockPassword: document.getElementById('unlock-password'),
+  togglePasswordBtn: document.getElementById('toggle-password-visibility'),
+  eyeIcon: document.getElementById('eye-icon')
+};
+
+// =====================
+// Show/Hide Password Logic
+// =====================
+if (el.togglePasswordBtn && el.unlockPassword) {
+  el.togglePasswordBtn.addEventListener('click', () => {
+    const isPassword = el.unlockPassword.type === 'password';
+    el.unlockPassword.type = isPassword ? 'text' : 'password';
+    // Optionally, toggle the eye icon style (open/closed)
+    el.togglePasswordBtn.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+    // You could swap SVG here for a closed eye if desired
+  });
+}
+
+// =====================
+// Time Input Utilities
+// =====================
+function getTimeMs(value, unit) {
+  if (unit === 'hour') return value * 60 * 60 * 1000;
+  return value * 60 * 1000;
+}
+function setTimeInput(ms, valueInput, unitInput) {
+  if (ms % (60 * 60 * 1000) === 0) {
+    valueInput.value = ms / (60 * 60 * 1000);
+    unitInput.value = 'hour';
+  } else {
+    valueInput.value = ms / (60 * 1000);
+    unitInput.value = 'min';
+  }
+}
+function bindTimeInputEvents(valueInput, unitInput, onChange) {
+  valueInput?.addEventListener('change', onChange);
+  unitInput?.addEventListener('change', onChange);
+}
+
+// =====================
+// Event Handlers
+// =====================
+// Pause Blocking
+el.pauseBtn?.addEventListener('click', () => {
+  const value = parseInt(el.pauseValue.value, 10);
+  const unit = el.pauseUnit.value;
+  if (isNaN(value) || value < 1) {
+    showToast('Enter a valid time period.', true);
+    return;
+  }
+  const ms = getTimeMs(value, unit);
+  const pauseUntil = Date.now() + ms;
+  setPauseWindow(pauseUntil, Date.now(), () => {
+    showPauseCountdown();
+    showToast(`Blocking paused for ${value} ${unit === 'min' ? 'min' : 'hour'}${value > 1 ? 's' : ''}`);
+  });
+});
+bindTimeInputEvents(el.pauseValue, el.pauseUnit, () => {
+  // No-op: Pause only triggers on button click
+});
+
+// Auto-Refresh
+el.autoRefreshToggle?.addEventListener('change', () => {
+  const enabled = el.autoRefreshToggle.checked;
+  const value = parseInt(el.autoRefreshInterval.value, 10);
+  const unit = el.autoRefreshUnit.value;
+  if (isNaN(value) || value < 1) {
+    showToast('Enter a valid interval.', true);
+    return;
+  }
+  setAutoRefreshConfig(enabled, getTimeMs(value, unit), () => {
+    showToast(enabled ? 'Auto-refresh enabled!' : 'Auto-refresh disabled!');
+  });
+});
+function handleAutoRefreshTimeChange() {
+  const value = parseInt(el.autoRefreshInterval.value, 10);
+  const unit = el.autoRefreshUnit.value;
+  if (isNaN(value) || value < 1) {
+    showToast('Enter a valid interval.', true);
+    return;
+  }
+  getAutoRefreshConfig(({ enabled }) => {
+    setAutoRefreshConfig(enabled, getTimeMs(value, unit), () => {
+      showToast(`Auto-refresh interval updated!`);
+    });
+  });
+}
+bindTimeInputEvents(el.autoRefreshInterval, el.autoRefreshUnit, handleAutoRefreshTimeChange);
+el.refreshNowBtn?.addEventListener('click', refreshNow);
+
+// Resume Now button handler
+const resumeBtn = document.getElementById('resume-btn');
+if (resumeBtn) {
+  resumeBtn.addEventListener('click', () => {
+    setPauseWindow(0, 0, () => {
+      showPauseCountdown();
+      showToast('Blocking resumed!');
+    });
+  });
+}
+
 // Backup (export) and restore (import) functionality
 function exportLists() {
   getLists((data) => {
@@ -534,33 +708,6 @@ document.getElementById('unlock-form').addEventListener('submit', (e) => {
 // =====================
 // Pause, Focus, and Main Event Handlers
 // =====================
-document.getElementById('pause-btn').addEventListener('click', () => {
-  const value = parseInt(document.getElementById('pause-value').value, 10);
-  const unit = document.getElementById('pause-unit').value;
-  if (isNaN(value) || value < 1) {
-    showToast('Enter a valid time period.', true);
-    return;
-  }
-  let ms = 0;
-  if (unit === 'min') {
-    ms = value * 60 * 1000;
-  } else if (unit === 'hour') {
-    ms = value * 60 * 60 * 1000;
-  }
-  const pauseUntil = Date.now() + ms;
-  setPauseWindow(pauseUntil, Date.now(), () => {
-    showPauseCountdown();
-    showToast(`Blocking paused for ${value} ${unit === 'min' ? 'min' : 'hour'}${value > 1 ? 's' : ''}`);
-  });
-});
-
-document.getElementById('resume-btn').addEventListener('click', () => {
-  setPauseWindow(0, 0, () => {
-    showPauseCountdown();
-    showToast('Blocking resumed!');
-  });
-});
-
 document.getElementById('block-domain-form').addEventListener('submit', (e) => {
   e.preventDefault();
   const input = document.getElementById('block-domain-input');
@@ -593,8 +740,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Always relock on popup open
   setLocked(true, () => {
     showLockScreen();
+    // Hide main UI until unlocked
+    document.getElementById('main-ui').style.display = 'none';
   });
   updateLists();
+  updateAutoRefreshUI();
   setDarkMode();
   showPauseCountdown();
   updateFocusModeToggle();
