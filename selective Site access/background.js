@@ -264,12 +264,29 @@ function removeAllDynamicRules() {
  * Update dynamic rules with new rule set.
  * @param {Array} newRules - Array of new rules to apply
  */
+/**
+ * Apply an array of new blocking rules, replacing all existing ones.
+ * @param {Array} newRules - Array of new rules to apply
+ */
 function updateDynamicRulesWithNewRules(newRules) {
+  console.log('Updating dynamic rules with:', newRules.length, 'rules');
+  newRules.forEach(rule => {
+    console.log('Rule:', rule.id, rule.action.type, rule.condition.urlFilter);
+  });
+  
   chrome.declarativeNetRequest.getDynamicRules((existingRules) => {
     const removeRuleIds = existingRules.map(r => r.id);
+    console.log('Removing existing rules:', removeRuleIds);
+    
     chrome.declarativeNetRequest.updateDynamicRules({
       removeRuleIds,
       addRules: newRules
+    }, () => {
+      if (chrome.runtime.lastError) {
+        console.error('Error updating rules:', chrome.runtime.lastError);
+      } else {
+        console.log('Successfully updated rules');
+      }
     });
   });
 }
@@ -346,7 +363,7 @@ function extractDomain(url) {
 
 /**
  * Refresh tabs that have blocked domains open.
- * This is specifically for when pause ends.
+ * This is specifically for when pause ends or blocking is manually resumed.
  */
 function refreshBlockedTabs() {
   chrome.storage.sync.get([STORAGE_KEYS.blockedDomains], (data) => {
@@ -356,12 +373,21 @@ function refreshBlockedTabs() {
     chrome.tabs.query({}, (tabs) => {
       let refreshCount = 0;
       tabs.forEach(tab => {
-        if (tab.url && tab.url.startsWith('http')) {
-          const domain = extractDomain(tab.url);
-          if (blockedDomains.includes(domain)) {
+        if (tab.url) {
+          // Case 1: Tab is showing a blocked domain directly
+          if (tab.url.startsWith('http')) {
+            const domain = extractDomain(tab.url);
+            if (blockedDomains.includes(domain)) {
+              chrome.tabs.reload(tab.id);
+              refreshCount++;
+              console.log(`Refreshed blocked tab: ${domain} (${tab.url})`);
+            }
+          }
+          // Case 2: Tab is showing the blocked.html page (old blocked page)
+          else if (tab.url.includes('blocked.html')) {
             chrome.tabs.reload(tab.id);
             refreshCount++;
-            console.log(`Refreshed blocked tab: ${domain} (${tab.url})`);
+            console.log(`Refreshed blocked.html tab: ${tab.url}`);
           }
         }
       });
@@ -462,6 +488,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       break;
     case 'whitelistModeChanged':
       updateDynamicRules();
+      break;
+    case 'refreshBlockedTabs':
+      refreshBlockedTabs();
+      sendResponse({ success: true });
       break;
     default:
       // Unknown message type - ignore

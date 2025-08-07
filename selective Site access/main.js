@@ -74,7 +74,16 @@ ui.bindTimeInputEvents(el.pauseValue, el.pauseUnit, () => {});
 el.resumeBtn?.addEventListener('click', () => {
   storage.setPauseWindow(0, 0, () => {
     ui.showPauseCountdown(storage.getPauseUntil, storage.getPauseStart);
-    ui.showToast('Blocking resumed!');
+    ui.showToast('Blocking resumed! Refreshing blocked tabs...');
+    
+    // Refresh all blocked tabs to show the new blocked page
+    chrome.runtime.sendMessage({ type: 'refreshBlockedTabs' }, (response) => {
+      if (response && response.success) {
+        setTimeout(() => {
+          ui.showToast('All blocked tabs refreshed with new blocked page!');
+        }, 1000);
+      }
+    });
   });
 });
 

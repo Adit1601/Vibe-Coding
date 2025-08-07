@@ -125,9 +125,86 @@ function redirectToBlockedPage() {
         type: 'blocked', 
         url: location.href 
       });
-      location.replace(chrome.runtime.getURL(BLOCKED_PAGE_PATH));
+      
+      // Instead of redirecting, replace the page content with our blocked page
+      loadBlockedPageContent();
     }
   }, BLOCK_DELAY_MS);
+}
+
+/**
+ * Load and display the enhanced blocked page content directly.
+ */
+function loadBlockedPageContent() {
+  fetch(chrome.runtime.getURL(BLOCKED_PAGE_PATH))
+    .then(response => response.text())
+    .then(html => {
+      // Replace the entire document with our blocked page
+      document.open();
+      document.write(html);
+      document.close();
+      
+      // Update the page title
+      document.title = 'Focus Mode - Site Blocked';
+      
+      console.log('Successfully loaded enhanced blocked page');
+    })
+    .catch(error => {
+      console.error('Error loading blocked page:', error);
+      // Fallback to basic blocking
+      showBasicBlockedPage();
+    });
+}
+
+/**
+ * Fallback basic blocked page if the enhanced one fails to load.
+ */
+function showBasicBlockedPage() {
+  document.body.innerHTML = `
+    <div style="
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      font-family: 'Segoe UI', sans-serif;
+      text-align: center;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      margin: 0;
+      padding: 20px;
+    ">
+      <div style="max-width: 600px;">
+        <div style="font-size: 4em; margin-bottom: 20px;">🛡️</div>
+        <h1 style="font-size: 2.5em; margin-bottom: 15px;">Stay Focused!</h1>
+        <p style="font-size: 1.2em; margin-bottom: 20px;">This site is blocked to help you maintain productivity</p>
+        <p style="font-size: 1em; opacity: 0.9;">💪 "Success is built one focused moment at a time"</p>
+        <div style="margin-top: 30px;">
+          <button onclick="window.close()" style="
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            padding: 12px 24px;
+            font-size: 1em;
+            cursor: pointer;
+            margin: 10px;
+          ">Close Tab</button>
+          <button onclick="history.back()" style="
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 25px;
+            padding: 12px 24px;
+            font-size: 1em;
+            cursor: pointer;
+            margin: 10px;
+          ">Go Back</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.title = 'Focus Mode - Site Blocked';
 }
 
 // =====================
