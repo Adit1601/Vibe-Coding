@@ -17,27 +17,8 @@
         --yellow: #ffd600;
         --card-bg: #23272a;
         --button-gradient: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
-        --button-gradient-hover: linear-gr      <div class="card auto-refresh-section">
-        <h2>Smart Refresh Settings</h2>
-        <div style="margin-bottom: 12px;">
-          <label style="display: flex; align-items: center; cursor: pointer;">
-            <input type="checkbox" id="auto-refresh-toggle" style="vertical-align:middle; margin-right:8px;" />
-            Auto-refresh blocked tabs when pause ends
-          </label>
-          <div style="font-size: 0.85em; color: #b0b0b0; margin-top: 4px; margin-left: 24px;">
-            Automatically refreshes blocked sites after pause period expires
-          </div>
-        </div>
-        <div class="time-input-row">
-          <span class="section-label">Also refresh every:</span>
-          <input type="number" id="auto-refresh-interval" min="1" value="60" />
-          <select id="auto-refresh-unit">
-            <option value="min">minutes</option>
-            <option value="hour">hours</option>
-          </select>
-          <button id="refresh-now-btn">Refresh Blocked Tabs</button>
-        </div>
-      </div>65c0 0%, #0d47a1 100%);
+        --button-gradient: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+        --button-gradient-hover: linear-gradient(135deg, #1565c0 0%, #0d47a1 100%);
         --resume-gradient: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
         --resume-gradient-hover: linear-gradient(135deg, #f7931e 0%, #e67e22 100%);
       }
@@ -47,7 +28,7 @@
       }
       
       body { 
-        min-width: 320px; 
+        min-width: 420px; 
         min-height: 260px; 
         font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; 
         background: var(--bg); 
@@ -70,7 +51,7 @@
         background-clip: text;
       }
       
-      h2, .auto-refresh-section h2 {
+      h2, .quick-actions h2 {
         font-size: 1.18em;
         font-weight: 500;
         color: #e3f2fd;
@@ -315,57 +296,11 @@
         color: #e3f2fd;
       }
       
-      .auto-refresh-section {
-        /* No border, no extra left padding, no margin-left */
-        /* Just use .card styles for consistency */
-      }
-      .auto-refresh-section h2 {
-        color: var(--accent);
-        text-align: left;
-        margin-left: 0;
-        padding-left: 0;
-      }
-      .time-input-row {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin: 10px 0 10px 0;
-      }
-      .time-input-row input[type="number"],
-      .time-input-row select {
-        margin-right: 8px;
-      }
-      .time-input-row button {
-        margin-left: auto;
-        min-width: 90px;
-      }
-      .time-input-row input[type="number"] {
-        width: 70px;
-        margin-right: 8px;
-      }
-      .section-label {
-        font-size: 1em;
-        font-weight: 500;
-        color: #e3f2fd;
-        margin-bottom: 2px;
-        margin-right: 10px;
-        min-width: 120px;
-      }
       .card {
         margin-bottom: 18px;
       }
-      .auto-refresh-section {
-        /* No border, no extra left padding, no margin-left */
-        /* Just use .card styles for consistency */
-      }
-      .auto-refresh-section h2 {
-        color: var(--accent);
-        text-align: left;
-        margin-left: 0;
-        padding-left: 0;
-      }
       /* Unified button style for all primary actions */
-      #refresh-now-btn, #pause-btn {
+      #pause-btn {
         background: var(--button-gradient);
         color: #fff;
         border: none;
@@ -638,27 +573,6 @@
         </form>
         <div class="input-error" id="allowlist-url-error"></div>
         <ul id="allowlist-urls-list"></ul>
-      </div>
-      <div class="card auto-refresh-section">
-        <h2>Smart Refresh Settings</h2>
-        <div style="margin-bottom: 12px;">
-          <label style="display: flex; align-items: center; cursor: pointer;">
-            <input type="checkbox" id="auto-refresh-toggle" style="vertical-align:middle; margin-right:8px;" />
-            Auto-refresh blocked tabs when pause ends
-          </label>
-          <div style="font-size: 0.85em; color: #b0b0b0; margin-top: 4px; margin-left: 24px;">
-            Automatically refreshes blocked sites after pause period expires
-          </div>
-        </div>
-        <div class="time-input-row">
-          <span class="section-label">Also refresh every:</span>
-          <input type="number" id="auto-refresh-interval" min="1" value="60" />
-          <select id="auto-refresh-unit">
-            <option value="min">minutes</option>
-            <option value="hour">hours</option>
-          </select>
-          <button id="refresh-now-btn">Refresh Blocked Tabs</button>
-        </div>
       </div>
       <div class="card" style="text-align:center;">
         <h2 style="margin-top:0;">Backup & Restore</h2>

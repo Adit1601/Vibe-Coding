@@ -13,9 +13,6 @@ const STORAGE_KEYS = {
   whitelistMode: 'whitelistMode', // New: Reverse mode - block everything except allowed
   blockCount: 'blockCount',
   lastBlockedUrl: 'lastBlockedUrl',
-  autoRefreshEnabled: 'autoRefreshEnabled',
-  autoRefreshInterval: 'autoRefreshInterval',
-  autoRefreshDomains: 'autoRefreshDomains',
 };
 
 /**
@@ -301,84 +298,6 @@ function updateBlockStats(url) {
 // let autoRefreshTimer = null;
 
 /**
- * Get auto-refresh configuration from storage.
- * @param {function} callback - Callback with {enabled, interval} object
- */
-function getAutoRefreshConfig(callback) {
-  chrome.storage.sync.get([
-    STORAGE_KEYS.autoRefreshEnabled, 
-    STORAGE_KEYS.autoRefreshInterval
-  ], (data) => {
-    callback({
-      enabled: !!data[STORAGE_KEYS.autoRefreshEnabled],
-      interval: data[STORAGE_KEYS.autoRefreshInterval] || 3600000
-    });
-  });
-}
-
-/**
- * Extract domain from URL.
- * @param {string} url - The URL to extract domain from
- * @returns {string} The domain name
- */
-function extractDomain(url) {
-  try {
-    const urlObj = new URL(url);
-    return urlObj.hostname.replace(/^www\./, '');
-  } catch (e) {
-    return '';
-  }
-}
-
-/**
- * Refresh tabs that match the configured domains.
- */
-function refreshMatchingTabs() {
-  getAutoRefreshConfig(({ enabled }) => {
-    if (!enabled) return;
-    chrome.storage.sync.get([STORAGE_KEYS.blockedDomains], (data) => {
-      const domains = data[STORAGE_KEYS.blockedDomains] || [];
-      if (domains.length === 0) return;
-      chrome.tabs.query({}, (tabs) => {
-        tabs.forEach(tab => {
-          if (tab.url && tab.url.startsWith('http')) {
-            const domain = extractDomain(tab.url);
-            if (domains.includes(domain)) {
-              chrome.tabs.reload(tab.id);
-              console.log(`Auto-refreshed tab: ${domain} (${tab.url})`);
-            }
-          }
-        });
-      });
-    });
-  });
-}
-
-/**
- * Start the auto-refresh alarm.
- */
-function startAutoRefreshAlarm() {
-  stopAutoRefreshAlarm(); // Clear any existing alarm
-  getAutoRefreshConfig(({ enabled, interval }) => {
-    if (enabled && interval > 0) {
-      // Convert ms to minutes for chrome.alarms
-      const minutes = Math.max(interval / 60000, 1);
-      chrome.alarms.create('autoRefreshAlarm', { periodInMinutes: minutes });
-      console.log(`Auto-refresh alarm started with interval: ${minutes} min`);
-    }
-  });
-}
-
-/**
- * Stop the auto-refresh alarm.
- */
-function stopAutoRefreshAlarm() {
-  chrome.alarms.clear('autoRefreshAlarm', () => {
-    console.log('Auto-refresh alarm stopped');
-  });
-}
-
-/**
  * Set an alarm for when pause ends to automatically refresh blocked tabs.
  */
 function setPauseEndAlarm() {
@@ -412,7 +331,21 @@ function handlePauseEnd() {
 }
 
 /**
- * Refresh only tabs that contain blocked domains.
+ * Extract domain from URL.
+ * @param {string} url - The URL to extract domain from
+ * @returns {string} The domain name
+ */
+function extractDomain(url) {
+  try {
+    const urlObj = new URL(url);
+    return urlObj.hostname.replace(/^www\./, '');
+  } catch (e) {
+    return '';
+  }
+}
+
+/**
+ * Refresh tabs that have blocked domains open.
  * This is specifically for when pause ends.
  */
 function refreshBlockedTabs() {
@@ -438,11 +371,10 @@ function refreshBlockedTabs() {
 }
 
 /**
- * Initialize auto-refresh functionality and pause monitoring.
+ * Initialize pause monitoring.
  */
-function initializeAutoRefresh() {
-  console.log('Initializing auto-refresh functionality...');
-  startAutoRefreshAlarm();
+function initializePauseMonitoring() {
+  console.log('Initializing pause monitoring...');
   
   // Check if there's an active pause and set alarm if needed
   chrome.storage.sync.get([STORAGE_KEYS.pauseUntil], (data) => {
@@ -456,9 +388,7 @@ function initializeAutoRefresh() {
 
 // Listen for alarm events
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm && alarm.name === 'autoRefreshAlarm') {
-    refreshMatchingTabs();
-  } else if (alarm && alarm.name === 'pauseEndAlarm') {
+  if (alarm && alarm.name === 'pauseEndAlarm') {
     handlePauseEnd();
   }
 });
@@ -496,12 +426,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
         handlePauseEnd();
       }
     }
-    
-    // Update auto-refresh timer if relevant settings changed
-    if (changes[STORAGE_KEYS.autoRefreshEnabled] || 
-        changes[STORAGE_KEYS.autoRefreshInterval]) {
-      startAutoRefreshAlarm();
-    }
   }
 });
 
@@ -510,7 +434,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
  */
 chrome.runtime.onInstalled.addListener(() => {
   updateDynamicRules();
-  initializeAutoRefresh();
+  initializePauseMonitoring();
 });
 
 /**
@@ -519,7 +443,7 @@ chrome.runtime.onInstalled.addListener(() => {
 if (chrome.runtime.onStartup) {
   chrome.runtime.onStartup.addListener(() => {
     updateDynamicRules();
-    initializeAutoRefresh();
+    initializePauseMonitoring();
   });
 }
 
@@ -538,22 +462,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       break;
     case 'whitelistModeChanged':
       updateDynamicRules();
-      break;
-    case 'getAutoRefreshConfig':
-      getAutoRefreshConfig(sendResponse);
-      return true; // Keep message channel open for async response
-    case 'setAutoRefreshConfig':
-      chrome.storage.sync.set({
-        [STORAGE_KEYS.autoRefreshEnabled]: msg.enabled,
-        [STORAGE_KEYS.autoRefreshInterval]: msg.interval
-      }, () => {
-        startAutoRefreshAlarm();
-        sendResponse({ success: true });
-      });
-      return true; // Keep message channel open for async response
-    case 'refreshNow':
-      refreshBlockedTabs();
-      sendResponse({ success: true });
       break;
     default:
       // Unknown message type - ignore

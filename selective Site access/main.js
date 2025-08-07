@@ -20,10 +20,6 @@ const el = {
   pauseValue: document.getElementById('pause-value'),
   pauseUnit: document.getElementById('pause-unit'),
   pauseBtn: document.getElementById('pause-btn'),
-  autoRefreshToggle: document.getElementById('auto-refresh-toggle'),
-  autoRefreshInterval: document.getElementById('auto-refresh-interval'),
-  autoRefreshUnit: document.getElementById('auto-refresh-unit'),
-  refreshNowBtn: document.getElementById('refresh-now-btn'),
   unlockPassword: document.getElementById('unlock-password'),
   togglePasswordBtn: document.getElementById('toggle-password-visibility'),
   eyeIcon: document.getElementById('eye-icon'),
@@ -79,39 +75,6 @@ el.resumeBtn?.addEventListener('click', () => {
   storage.setPauseWindow(0, 0, () => {
     ui.showPauseCountdown(storage.getPauseUntil, storage.getPauseStart);
     ui.showToast('Blocking resumed!');
-  });
-});
-
-// Auto-Refresh
-el.autoRefreshToggle?.addEventListener('change', () => {
-  const enabled = el.autoRefreshToggle.checked;
-  const value = parseInt(el.autoRefreshInterval.value, 10);
-  const unit = el.autoRefreshUnit.value;
-  if (isNaN(value) || value < 1) {
-    ui.showToast('Enter a valid interval.', true);
-    return;
-  }
-  storage.setAutoRefreshConfig(enabled, getTimeMs(value, unit), () => {
-    ui.showToast(enabled ? 'Smart refresh enabled!' : 'Smart refresh disabled!');
-  });
-});
-function handleAutoRefreshTimeChange() {
-  const value = parseInt(el.autoRefreshInterval.value, 10);
-  const unit = el.autoRefreshUnit.value;
-  if (isNaN(value) || value < 1) {
-    ui.showToast('Enter a valid interval.', true);
-    return;
-  }
-  storage.getAutoRefreshConfig(({ enabled }) => {
-    storage.setAutoRefreshConfig(enabled, getTimeMs(value, unit), () => {
-      ui.showToast(`Smart refresh interval updated!`);
-    });
-  });
-}
-ui.bindTimeInputEvents(el.autoRefreshInterval, el.autoRefreshUnit, handleAutoRefreshTimeChange);
-el.refreshNowBtn?.addEventListener('click', () => {
-  chrome.runtime.sendMessage({ type: 'refreshNow' }, () => {
-    ui.showToast('Refreshed blocked tabs!');
   });
 });
 
@@ -283,16 +246,17 @@ function updateWhitelistModeUI() {
     }
     
     if (isWhitelistMode) {
-      // Whitelist mode UI
+      // Whitelist mode UI - keep same titles but change descriptions
       el.modeToggleSection?.classList.add('whitelist-active');
       if (el.modeTitle) el.modeTitle.textContent = '🔒 Whitelist Mode Active';
-      if (el.modeDescription) el.modeDescription.textContent = 'Block everything except specifically allowed domains/URLs';
+      if (el.modeDescription) el.modeDescription.textContent = 'Block everything except domains/URLs listed below';
       if (el.whitelistToggleText) el.whitelistToggleText.textContent = 'Switch to Standard Mode';
-      if (el.blockedDomainsTitle) el.blockedDomainsTitle.textContent = 'Allowed Domains';
-      if (el.allowlistUrlsTitle) el.allowlistUrlsTitle.textContent = 'Allowed URLs';
-      if (el.blockDomainSubmit) el.blockDomainSubmit.textContent = 'Allow';
-      if (el.allowlistUrlSubmit) el.allowlistUrlSubmit.textContent = 'Allow';
-      if (el.blockDomainInput) el.blockDomainInput.placeholder = 'e.g. google.com (domain to allow)';
+      // Keep same titles - just the behavior changes
+      if (el.blockedDomainsTitle) el.blockedDomainsTitle.textContent = 'Blocked Domains';
+      if (el.allowlistUrlsTitle) el.allowlistUrlsTitle.textContent = 'Allowlist URLs';
+      if (el.blockDomainSubmit) el.blockDomainSubmit.textContent = 'Add';
+      if (el.allowlistUrlSubmit) el.allowlistUrlSubmit.textContent = 'Add';
+      if (el.blockDomainInput) el.blockDomainInput.placeholder = 'e.g. google.com (only this will be allowed)';
     } else {
       // Standard mode UI
       el.modeToggleSection?.classList.remove('whitelist-active');

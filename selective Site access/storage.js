@@ -11,9 +11,6 @@ const STORAGE_KEYS = {
   pauseStart: 'pauseStart',
   focusMode: 'focusMode',
   whitelistMode: 'whitelistMode', // New: Reverse mode - block everything except allowed
-  autoRefreshEnabled: 'autoRefreshEnabled',
-  autoRefreshInterval: 'autoRefreshInterval',
-  autoRefreshDomains: 'autoRefreshDomains',
 };
 
 // Default password - users should change this for security
@@ -102,27 +99,6 @@ export function getFocusMode(callback) {
 
 export function setFocusMode(enabled, callback) {
   chrome.storage.sync.set({ [STORAGE_KEYS.focusMode]: enabled }, callback);
-}
-
-export function getAutoRefreshConfig(callback) {
-  chrome.storage.sync.get([
-    STORAGE_KEYS.autoRefreshEnabled,
-    STORAGE_KEYS.autoRefreshInterval
-  ], (data) => {
-    callback({
-      enabled: !!data[STORAGE_KEYS.autoRefreshEnabled],
-      interval: data[STORAGE_KEYS.autoRefreshInterval] || 3600000
-    });
-  });
-}
-
-export function setAutoRefreshConfig(enabled, interval, callback) {
-  chrome.runtime.sendMessage({
-    type: 'setAutoRefreshConfig',
-    enabled: enabled,
-    interval: interval,
-    domains: [] // ignored in background now
-  }, callback);
 }
 
 export function getWhitelistMode(callback) {

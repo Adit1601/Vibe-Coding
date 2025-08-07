@@ -1,16 +1,260 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Blocked</title>
+    <title>Focus Mode - Site Blocked</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-      body { background: #f44336; color: #fff; font-family: Arial, sans-serif; text-align: center; padding-top: 100px; }
-      h1 { font-size: 3em; }
-      p { font-size: 1.5em; }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      
+      body { 
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: #fff; 
+        font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif; 
+        text-align: center; 
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        position: relative;
+        overflow: hidden;
+      }
+      
+      /* Animated background particles */
+      .particle {
+        position: absolute;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 50%;
+        pointer-events: none;
+        animation: float 6s ease-in-out infinite;
+      }
+      
+      @keyframes float {
+        0%, 100% { transform: translateY(0) rotate(0deg); opacity: 1; }
+        50% { transform: translateY(-20px) rotate(180deg); opacity: 0.5; }
+      }
+      
+      .container {
+        max-width: 600px;
+        padding: 40px 20px;
+        z-index: 10;
+        position: relative;
+      }
+      
+      .icon {
+        font-size: 4em;
+        margin-bottom: 20px;
+        animation: pulse 2s ease-in-out infinite;
+      }
+      
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+      }
+      
+      h1 { 
+        font-size: 2.5em;
+        font-weight: 700;
+        margin-bottom: 15px;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        background: linear-gradient(45deg, #fff, #f0f8ff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      
+      .subtitle {
+        font-size: 1.3em;
+        margin-bottom: 30px;
+        opacity: 0.9;
+        font-weight: 300;
+      }
+      
+      .message {
+        font-size: 1.1em;
+        line-height: 1.6;
+        margin-bottom: 30px;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 25px;
+        border-radius: 15px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+      
+      .motivational {
+        font-size: 1.2em;
+        font-weight: 500;
+        color: #ffd700;
+        margin-bottom: 20px;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+      }
+      
+      .action-buttons {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-top: 30px;
+      }
+      
+      .btn {
+        padding: 12px 24px;
+        border: none;
+        border-radius: 25px;
+        font-size: 1em;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-block;
+      }
+      
+      .btn-primary {
+        background: linear-gradient(45deg, #4CAF50, #45a049);
+        color: white;
+        box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+      }
+      
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+      }
+      
+      .btn-secondary {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+      }
+      
+      .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+      }
+      
+      .footer {
+        margin-top: 40px;
+        font-size: 0.9em;
+        opacity: 0.7;
+      }
+      
+      .stats {
+        display: flex;
+        justify-content: space-around;
+        margin: 20px 0;
+        flex-wrap: wrap;
+      }
+      
+      .stat-item {
+        text-align: center;
+        margin: 10px;
+      }
+      
+      .stat-number {
+        font-size: 1.5em;
+        font-weight: bold;
+        color: #ffd700;
+      }
+      
+      .stat-label {
+        font-size: 0.9em;
+        opacity: 0.8;
+      }
+      
+      @media (max-width: 480px) {
+        h1 { font-size: 2em; }
+        .subtitle { font-size: 1.1em; }
+        .message { font-size: 1em; padding: 20px; }
+        .action-buttons { flex-direction: column; align-items: center; }
+        .btn { width: 200px; }
+      }
     </style>
   </head>
   <body>
-    <h1>Blocked!</h1>
-    <p>This page has been blocked by your extension.</p>
-    <p>If you believe this is a mistake, check your allowlist in the extension options.</p>
+    <!-- Animated background particles -->
+    <div class="particle" style="width: 10px; height: 10px; left: 10%; top: 20%; animation-delay: 0s;"></div>
+    <div class="particle" style="width: 15px; height: 15px; left: 20%; top: 60%; animation-delay: 2s;"></div>
+    <div class="particle" style="width: 8px; height: 8px; left: 70%; top: 30%; animation-delay: 4s;"></div>
+    <div class="particle" style="width: 12px; height: 12px; left: 80%; top: 70%; animation-delay: 1s;"></div>
+    <div class="particle" style="width: 6px; height: 6px; left: 30%; top: 80%; animation-delay: 3s;"></div>
+    <div class="particle" style="width: 18px; height: 18px; left: 90%; top: 10%; animation-delay: 5s;"></div>
+    
+    <div class="container">
+      <div class="icon">🛡️</div>
+      <h1>Stay Focused!</h1>
+      <div class="subtitle">This site is blocked to help you maintain productivity</div>
+      
+      <div class="message">
+        <div class="motivational">💪 "Success is built one focused moment at a time"</div>
+        <p>This website has been blocked by <strong>Selective Site Access</strong> to help you stay focused on what matters most. Your future self will thank you for this discipline!</p>
+        
+        <div class="stats">
+          <div class="stat-item">
+            <div class="stat-number">🎯</div>
+            <div class="stat-label">Focus Mode Active</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number">⏰</div>
+            <div class="stat-label">Time Saved</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number">🚀</div>
+            <div class="stat-label">Productivity Boost</div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="action-buttons">
+        <button class="btn btn-primary" onclick="window.close()">Close Tab</button>
+        <button class="btn btn-secondary" onclick="history.back()">Go Back</button>
+      </div>
+      
+      <div class="footer">
+        <p>Need to access this site? Check your extension settings or take a break first! 🧘‍♂️</p>
+        <p><small>Powered by Selective Site Access Extension</small></p>
+      </div>
+    </div>
+    
+    <script>
+      // Add some interactive elements
+      document.addEventListener('DOMContentLoaded', function() {
+        // Add more particles dynamically
+        const body = document.body;
+        for (let i = 0; i < 8; i++) {
+          const particle = document.createElement('div');
+          particle.className = 'particle';
+          particle.style.width = Math.random() * 10 + 5 + 'px';
+          particle.style.height = particle.style.width;
+          particle.style.left = Math.random() * 100 + '%';
+          particle.style.top = Math.random() * 100 + '%';
+          particle.style.animationDelay = Math.random() * 6 + 's';
+          body.appendChild(particle);
+        }
+        
+        // Show current time
+        const now = new Date();
+        const timeElement = document.createElement('div');
+        timeElement.style.position = 'absolute';
+        timeElement.style.top = '20px';
+        timeElement.style.right = '20px';
+        timeElement.style.fontSize = '0.9em';
+        timeElement.style.opacity = '0.7';
+        timeElement.textContent = now.toLocaleTimeString();
+        body.appendChild(timeElement);
+      });
+      
+      // Keyboard shortcuts
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+          window.close();
+        } else if (e.key === 'Backspace' || (e.altKey && e.key === 'ArrowLeft')) {
+          history.back();
+        }
+      });
+    </script>
   </body>
 </html> 
