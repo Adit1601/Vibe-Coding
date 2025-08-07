@@ -10,6 +10,7 @@ const STORAGE_KEYS = {
   allowlistUrls: 'allowlistUrls',
   pauseUntil: 'pauseUntil',
   focusMode: 'focusMode',
+  whitelistMode: 'whitelistMode',
 };
 
 /**
@@ -54,6 +55,16 @@ function getFocusMode(callback) {
 }
 
 /**
+ * Get whitelist mode state from storage.
+ * @param {function} callback - Callback with boolean result
+ */
+function getWhitelistMode(callback) {
+  chrome.storage.sync.get([STORAGE_KEYS.whitelistMode], (data) => {
+    callback(!!data[STORAGE_KEYS.whitelistMode]);
+  });
+}
+
+/**
  * Get blocklist and allowlist from storage.
  * @param {function} callback - Callback with {blocked, allowlist} object
  */
@@ -70,16 +81,27 @@ function getLists(callback) {
 // URL Checking Module
 // =====================
 /**
- * Check if current URL should be blocked based on domain and allowlist.
- * @param {Array} blockedDomains - Array of blocked domain names
+ * Check if current URL should be blocked based on mode and settings.
+ * @param {Array} blockedDomains - Array of blocked domain names (or allowed domains in whitelist mode)
  * @param {Array} allowlistUrls - Array of allowed URLs
  * @param {boolean} focusMode - Whether focus mode is enabled
+ * @param {boolean} whitelistMode - Whether whitelist mode is enabled
  * @returns {boolean} True if URL should be blocked
  */
-function shouldBlockUrl(blockedDomains, allowlistUrls, focusMode) {
+function shouldBlockUrl(blockedDomains, allowlistUrls, focusMode, whitelistMode) {
   const currentHostname = location.hostname;
   const currentUrl = location.href;
   
+  if (whitelistMode) {
+    // Whitelist mode: block everything except allowed domains/URLs
+    const isDomainAllowed = blockedDomains.some(domain => currentHostname.endsWith(domain));
+    const isUrlAllowed = allowlistUrls.some(url => currentUrl.startsWith(url));
+    
+    // Block if neither domain nor URL is explicitly allowed
+    return !isDomainAllowed && !isUrlAllowed;
+  }
+  
+  // Standard or Focus mode
   const isBlocked = blockedDomains.some(domain => currentHostname.endsWith(domain));
   const isAllowed = allowlistUrls.some(url => currentUrl.startsWith(url));
   
@@ -121,11 +143,13 @@ function checkAndBlock() {
       return; // Don't block if paused
     }
 
-    getFocusMode((focusMode) => {
-      getLists(({ blocked, allowlist }) => {
-        if (shouldBlockUrl(blocked, allowlist, focusMode)) {
-          redirectToBlockedPage();
-        }
+    getWhitelistMode((whitelistMode) => {
+      getFocusMode((focusMode) => {
+        getLists(({ blocked, allowlist }) => {
+          if (shouldBlockUrl(blocked, allowlist, focusMode, whitelistMode)) {
+            redirectToBlockedPage();
+          }
+        });
       });
     });
   });

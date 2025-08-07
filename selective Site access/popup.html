@@ -17,7 +17,27 @@
         --yellow: #ffd600;
         --card-bg: #23272a;
         --button-gradient: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
-        --button-gradient-hover: linear-gradient(135deg, #1565c0 0%, #0d47a1 100%);
+        --button-gradient-hover: linear-gr      <div class="card auto-refresh-section">
+        <h2>Smart Refresh Settings</h2>
+        <div style="margin-bottom: 12px;">
+          <label style="display: flex; align-items: center; cursor: pointer;">
+            <input type="checkbox" id="auto-refresh-toggle" style="vertical-align:middle; margin-right:8px;" />
+            Auto-refresh blocked tabs when pause ends
+          </label>
+          <div style="font-size: 0.85em; color: #b0b0b0; margin-top: 4px; margin-left: 24px;">
+            Automatically refreshes blocked sites after pause period expires
+          </div>
+        </div>
+        <div class="time-input-row">
+          <span class="section-label">Also refresh every:</span>
+          <input type="number" id="auto-refresh-interval" min="1" value="60" />
+          <select id="auto-refresh-unit">
+            <option value="min">minutes</option>
+            <option value="hour">hours</option>
+          </select>
+          <button id="refresh-now-btn">Refresh Blocked Tabs</button>
+        </div>
+      </div>65c0 0%, #0d47a1 100%);
         --resume-gradient: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
         --resume-gradient-hover: linear-gradient(135deg, #f7931e 0%, #e67e22 100%);
       }
@@ -410,6 +430,97 @@
         visibility: visible;
         opacity: 1;
       }
+      
+      /* Password Strength Indicator */
+      .password-strength {
+        height: 4px;
+        background: #333;
+        border-radius: 2px;
+        margin: 4px 0 8px 0;
+        overflow: hidden;
+      }
+      .password-strength-bar {
+        height: 100%;
+        width: 0%;
+        transition: all 0.3s ease;
+        border-radius: 2px;
+      }
+      .strength-weak { background: #e74c3c; }
+      .strength-fair { background: #f39c12; }
+      .strength-good { background: #3498db; }
+      .strength-strong { background: #27ae60; }
+      
+      .password-strength-text {
+        font-size: 0.8em;
+        margin-top: 2px;
+        transition: color 0.3s ease;
+      }
+      
+      /* Quick Actions Styles */
+      .quick-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      
+      #quick-block-btn {
+        background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+        flex: 1;
+        min-width: 0;
+        font-size: 0.9em;
+        padding: 10px 12px;
+      }
+      
+      #quick-block-btn:hover {
+        background: linear-gradient(135deg, #c0392b 0%, #a93226 100%);
+        box-shadow: 0 4px 16px rgba(231, 76, 60, 0.3);
+      }
+      
+      #quick-block-btn:disabled {
+        background: #666;
+        cursor: not-allowed;
+        opacity: 0.6;
+      }
+      
+      #current-site-info {
+        font-size: 0.85em;
+        color: #b0b0b0;
+        margin-bottom: 8px;
+        text-align: center;
+        font-family: monospace;
+      }
+      
+      /* Whitelist Mode Styles */
+      .mode-toggle-section {
+        background: rgba(255, 152, 0, 0.1);
+        border: 1px solid #ff9800;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 16px;
+      }
+      
+      .mode-toggle-section.whitelist-active {
+        background: rgba(156, 39, 176, 0.15);
+        border-color: #9c27b0;
+      }
+      
+      .mode-toggle-section h3 {
+        margin: 0 0 8px 0;
+        font-size: 1em;
+        color: #ffcc02;
+      }
+      
+      .mode-toggle-section.whitelist-active h3 {
+        color: #ce93d8;
+      }
+      
+      .mode-description {
+        font-size: 0.85em;
+        color: #e0e0e0;
+        margin-bottom: 10px;
+        line-height: 1.4;
+      }
     </style>
   </head>
   <body>
@@ -422,6 +533,11 @@
     <div id="lock-screen">
       <div class="lock-card">
         <h2>Extension Locked</h2>
+        <div id="security-warning" style="display:none; background: rgba(255, 152, 0, 0.1); border: 1px solid #ff9800; border-radius: 6px; padding: 12px; margin-bottom: 16px; color: #ffcc02;">
+          <div style="font-size: 0.95em; font-weight: 500; margin-bottom: 4px;">🔒 Security Notice</div>
+          <div style="font-size: 0.85em; line-height: 1.4; margin-bottom: 6px;">You're using the default password. For better security, please change it using the "Change Password" button below.</div>
+          <div style="font-size: 0.8em; opacity: 0.8; font-family: monospace;">Current default: Adit#@235791113</div>
+        </div>
         <form id="unlock-form">
           <div class="input-row">
             <input type="password" id="unlock-password" placeholder="Enter password to unlock" required />
@@ -435,9 +551,24 @@
           </div>
         </form>
         <form id="change-password-form" style="display:none; margin-top:10px;">
-          <input type="password" id="current-password" placeholder="Current password" required /><br>
-          <input type="password" id="new-password" placeholder="New password" required /><br>
-          <input type="password" id="confirm-password" placeholder="Confirm new password" required /><br>
+          <div style="font-size: 0.9em; color: #e3f2fd; margin-bottom: 12px;">
+            <strong>Password Requirements:</strong><br>
+            • At least 6 characters long<br>
+            • Mix of letters, numbers, and symbols recommended
+          </div>
+          <div style="margin-bottom: 8px;">
+            <input type="password" id="current-password" placeholder="Current password" required style="width: 100%; margin-bottom: 8px;" />
+          </div>
+          <div style="margin-bottom: 8px;">
+            <input type="password" id="new-password" placeholder="New password (min 6 chars)" required style="width: 100%; margin-bottom: 4px;" />
+            <div class="password-strength" id="password-strength" style="display: none;">
+              <div class="password-strength-bar" id="password-strength-bar"></div>
+            </div>
+            <div class="password-strength-text" id="password-strength-text" style="display: none;"></div>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <input type="password" id="confirm-password" placeholder="Confirm new password" required style="width: 100%;" />
+          </div>
           <button type="submit">Set Password</button>
           <button type="button" id="cancel-change-password">Cancel</button>
         </form>
@@ -457,6 +588,27 @@
       </div>
     </div>
     <div id="main-ui">
+      <!-- Quick Actions Section -->
+      <div class="card">
+        <h2>Quick Actions</h2>
+        <div id="current-site-info">Loading current site...</div>
+        <div class="quick-actions">
+          <button id="quick-block-btn" disabled>Block Current Site</button>
+        </div>
+      </div>
+      
+      <!-- Mode Toggle Section -->
+      <div class="mode-toggle-section" id="mode-toggle-section">
+        <h3 id="mode-title">🛡️ Standard Blocking Mode</h3>
+        <div class="mode-description" id="mode-description">
+          Block specific domains, allow specific URLs within blocked domains
+        </div>
+        <label style="display: flex; align-items: center; cursor: pointer;">
+          <input type="checkbox" id="whitelist-mode-toggle" style="vertical-align:middle; margin-right:8px;" />
+          <span id="whitelist-toggle-text">Switch to Whitelist Mode (Block Everything Except Allowed)</span>
+        </label>
+      </div>
+      
       <div class="card" style="text-align:center;">
         <div class="focus-mode-row">
           <label style="font-size:1em; margin-bottom:0; font-weight:500;">
@@ -470,39 +622,42 @@
         </div>
       </div>
       <div class="card">
-        <h2>Blocked Domains</h2>
+        <h2 id="blocked-domains-title">Blocked Domains</h2>
         <form id="block-domain-form">
           <input type="text" id="block-domain-input" placeholder="e.g. youtube.com" required />
-          <button type="submit">Add</button>
+          <button type="submit" id="block-domain-submit">Add</button>
         </form>
         <div class="input-error" id="block-domain-error"></div>
         <ul id="blocked-domains-list"></ul>
       </div>
       <div class="card">
-        <h2>Allowlist URLs</h2>
+        <h2 id="allowlist-urls-title">Allowlist URLs</h2>
         <form id="allowlist-url-form">
           <input type="text" id="allowlist-url-input" placeholder="e.g. https://www.youtube.com/watch?v=abc123" required />
-          <button type="submit">Add</button>
+          <button type="submit" id="allowlist-url-submit">Add</button>
         </form>
         <div class="input-error" id="allowlist-url-error"></div>
         <ul id="allowlist-urls-list"></ul>
       </div>
       <div class="card auto-refresh-section">
-        <h2>Auto-Refresh Settings</h2>
+        <h2>Smart Refresh Settings</h2>
         <div style="margin-bottom: 12px;">
-          <label style="font-size:1em;">
+          <label style="display: flex; align-items: center; cursor: pointer;">
             <input type="checkbox" id="auto-refresh-toggle" style="vertical-align:middle; margin-right:8px;" />
-            Enable Auto-Refresh
+            Auto-refresh blocked tabs when pause ends
           </label>
+          <div style="font-size: 0.85em; color: #b0b0b0; margin-top: 4px; margin-left: 24px;">
+            Automatically refreshes blocked sites after pause period expires
+          </div>
         </div>
         <div class="time-input-row">
-          <span class="section-label">Refresh Interval:</span>
+          <span class="section-label">Also refresh every:</span>
           <input type="number" id="auto-refresh-interval" min="1" value="60" />
           <select id="auto-refresh-unit">
-            <option value="min">min(s)</option>
-            <option value="hour">hour(s)</option>
+            <option value="min">minutes</option>
+            <option value="hour">hours</option>
           </select>
-          <button id="refresh-now-btn">Refresh Now</button>
+          <button id="refresh-now-btn">Refresh Blocked Tabs</button>
         </div>
       </div>
       <div class="card" style="text-align:center;">

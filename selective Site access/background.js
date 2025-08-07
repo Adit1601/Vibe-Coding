@@ -10,6 +10,7 @@ const STORAGE_KEYS = {
   allowlistUrls: 'allowlistUrls',
   pauseUntil: 'pauseUntil',
   focusMode: 'focusMode',
+  whitelistMode: 'whitelistMode', // New: Reverse mode - block everything except allowed
   blockCount: 'blockCount',
   lastBlockedUrl: 'lastBlockedUrl',
   autoRefreshEnabled: 'autoRefreshEnabled',
@@ -104,6 +105,61 @@ function generateFocusModeRules(blockedDomains) {
   return rules;
 }
 
+/**
+ * Generate rules for whitelist mode (block everything except allowed domains/URLs).
+ * @param {Array} allowedDomains - Array of domain names to allow (from blockedDomains list in whitelist mode)
+ * @param {Array} allowlistUrls - Array of specific URLs to allow
+ * @returns {Array} Array of rule objects for declarativeNetRequest
+ */
+function generateWhitelistModeRules(allowedDomains, allowlistUrls) {
+  let rules = [];
+  let ruleId = 1;
+
+  // Allow specific URLs - highest priority
+  allowlistUrls.forEach(url => {
+    rules.push({
+      id: ruleId++,
+      priority: RULE_PRIORITIES.ALLOW,
+      action: { type: 'allow' },
+      condition: {
+        urlFilter: url,
+        resourceTypes: ["main_frame"]
+      }
+    });
+  });
+
+  // Allow specific domains - high priority
+  allowedDomains.forEach(domain => {
+    rules.push({
+      id: ruleId++,
+      priority: RULE_PRIORITIES.ALLOW,
+      action: { type: 'allow' },
+      condition: {
+        urlFilter: `||${domain}^`,
+        resourceTypes: ["main_frame"]
+      }
+    });
+  });
+
+  // Block everything else - lowest priority
+  // Use a broad pattern to block all HTTP/HTTPS traffic
+  rules.push({
+    id: ruleId++,
+    priority: 1, // Lower than ALLOW priorities
+    action: { 
+      type: 'redirect', 
+      redirect: { extensionPath: BLOCKED_PAGE_PATH } 
+    },
+    condition: {
+      urlFilter: '||*',
+      resourceTypes: ["main_frame"],
+      excludedRequestDomains: ['localhost', '127.0.0.1'], // Don't block local development
+    }
+  });
+
+  return rules;
+}
+
 // =====================
 // Storage Module
 // =====================
@@ -128,6 +184,16 @@ function getFocusMode(callback) {
 }
 
 /**
+ * Get whitelist mode state from storage.
+ * @param {function} callback - Callback with boolean result
+ */
+function getWhitelistMode(callback) {
+  chrome.storage.sync.get([STORAGE_KEYS.whitelistMode], (data) => {
+    callback(!!data[STORAGE_KEYS.whitelistMode]);
+  });
+}
+
+/**
  * Get blocklist and allowlist from storage.
  * @param {function} callback - Callback with {blocked, allowlist} object
  */
@@ -144,7 +210,7 @@ function getLists(callback) {
 // Rule Management Module
 // =====================
 /**
- * Update dynamic rules based on current state (paused, focus mode, etc.).
+ * Update dynamic rules based on current state (paused, focus mode, whitelist mode, etc.).
  * This is the main function that manages all blocking rules.
  */
 function updateDynamicRules() {
@@ -155,20 +221,31 @@ function updateDynamicRules() {
       return;
     }
 
-    getFocusMode((focusMode) => {
-      getLists(({ blocked, allowlist }) => {
-        let rules = [];
-        
-        if (focusMode) {
-          // Focus mode: only block blocklist, ignore allowlist
-          rules = generateFocusModeRules(blocked);
-        } else {
-          // Normal mode: block domains but allow specific URLs
-          rules = generateRules(blocked, allowlist);
-        }
+    getWhitelistMode((whitelistMode) => {
+      if (whitelistMode) {
+        // Whitelist mode: block everything except allowed domains/URLs
+        getLists(({ blocked, allowlist }) => {
+          const rules = generateWhitelistModeRules(blocked, allowlist);
+          updateDynamicRulesWithNewRules(rules);
+        });
+      } else {
+        // Standard or Focus mode
+        getFocusMode((focusMode) => {
+          getLists(({ blocked, allowlist }) => {
+            let rules = [];
+            
+            if (focusMode) {
+              // Focus mode: only block blocklist, ignore allowlist
+              rules = generateFocusModeRules(blocked);
+            } else {
+              // Normal mode: block domains but allow specific URLs
+              rules = generateRules(blocked, allowlist);
+            }
 
-        updateDynamicRulesWithNewRules(rules);
-      });
+            updateDynamicRulesWithNewRules(rules);
+          });
+        });
+      }
     });
   });
 }
@@ -302,17 +379,87 @@ function stopAutoRefreshAlarm() {
 }
 
 /**
- * Initialize auto-refresh functionality.
+ * Set an alarm for when pause ends to automatically refresh blocked tabs.
+ */
+function setPauseEndAlarm() {
+  chrome.storage.sync.get([STORAGE_KEYS.pauseUntil], (data) => {
+    const pauseUntil = data[STORAGE_KEYS.pauseUntil] || 0;
+    
+    // Clear any existing pause end alarm
+    chrome.alarms.clear('pauseEndAlarm');
+    
+    if (pauseUntil > Date.now()) {
+      // Set alarm for when pause ends
+      chrome.alarms.create('pauseEndAlarm', { when: pauseUntil });
+      console.log(`Pause end alarm set for: ${new Date(pauseUntil).toLocaleString()}`);
+    }
+  });
+}
+
+/**
+ * Handle pause end - refresh blocked tabs and update rules.
+ */
+function handlePauseEnd() {
+  console.log('Pause period ended - refreshing blocked tabs');
+  
+  // Update rules first
+  updateDynamicRules();
+  
+  // Wait a bit for rules to update, then refresh blocked tabs
+  setTimeout(() => {
+    refreshBlockedTabs();
+  }, 1000);
+}
+
+/**
+ * Refresh only tabs that contain blocked domains.
+ * This is specifically for when pause ends.
+ */
+function refreshBlockedTabs() {
+  chrome.storage.sync.get([STORAGE_KEYS.blockedDomains], (data) => {
+    const blockedDomains = data[STORAGE_KEYS.blockedDomains] || [];
+    if (blockedDomains.length === 0) return;
+    
+    chrome.tabs.query({}, (tabs) => {
+      let refreshCount = 0;
+      tabs.forEach(tab => {
+        if (tab.url && tab.url.startsWith('http')) {
+          const domain = extractDomain(tab.url);
+          if (blockedDomains.includes(domain)) {
+            chrome.tabs.reload(tab.id);
+            refreshCount++;
+            console.log(`Refreshed blocked tab: ${domain} (${tab.url})`);
+          }
+        }
+      });
+      console.log(`Refreshed ${refreshCount} blocked tabs after pause ended`);
+    });
+  });
+}
+
+/**
+ * Initialize auto-refresh functionality and pause monitoring.
  */
 function initializeAutoRefresh() {
   console.log('Initializing auto-refresh functionality...');
   startAutoRefreshAlarm();
+  
+  // Check if there's an active pause and set alarm if needed
+  chrome.storage.sync.get([STORAGE_KEYS.pauseUntil], (data) => {
+    const pauseUntil = data[STORAGE_KEYS.pauseUntil] || 0;
+    if (pauseUntil > Date.now()) {
+      setPauseEndAlarm();
+      console.log('Found active pause period - setting alarm for auto-refresh when pause ends');
+    }
+  });
 }
 
 // Listen for alarm events
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm && alarm.name === 'autoRefreshAlarm') {
     refreshMatchingTabs();
+  } else if (alarm && alarm.name === 'pauseEndAlarm') {
+    handlePauseEnd();
   }
 });
 
@@ -327,8 +474,27 @@ chrome.storage.onChanged.addListener((changes, area) => {
     // Update blocking rules if relevant settings changed
     if (changes[STORAGE_KEYS.blockedDomains] || 
         changes[STORAGE_KEYS.allowlistUrls] || 
-        changes[STORAGE_KEYS.pauseUntil]) {
+        changes[STORAGE_KEYS.pauseUntil] ||
+        changes[STORAGE_KEYS.whitelistMode]) {
       updateDynamicRules();
+    }
+    
+    // Handle pause changes
+    if (changes[STORAGE_KEYS.pauseUntil]) {
+      const newPauseUntil = changes[STORAGE_KEYS.pauseUntil].newValue;
+      const oldPauseUntil = changes[STORAGE_KEYS.pauseUntil].oldValue;
+      
+      // If pause just started (new value is in the future)
+      if (newPauseUntil && newPauseUntil > Date.now()) {
+        setPauseEndAlarm();
+        console.log('Pause started - alarm set for auto-refresh when pause ends');
+      }
+      // If pause just ended manually (new value is 0 or in the past, old value was in the future)
+      else if ((newPauseUntil === 0 || newPauseUntil < Date.now()) && oldPauseUntil && oldPauseUntil > Date.now()) {
+        // Clear the pause end alarm since it ended manually
+        chrome.alarms.clear('pauseEndAlarm');
+        handlePauseEnd();
+      }
     }
     
     // Update auto-refresh timer if relevant settings changed
@@ -370,6 +536,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     case 'focusModeChanged':
       updateDynamicRules();
       break;
+    case 'whitelistModeChanged':
+      updateDynamicRules();
+      break;
     case 'getAutoRefreshConfig':
       getAutoRefreshConfig(sendResponse);
       return true; // Keep message channel open for async response
@@ -383,11 +552,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       });
       return true; // Keep message channel open for async response
     case 'refreshNow':
-      refreshMatchingTabs();
+      refreshBlockedTabs();
       sendResponse({ success: true });
       break;
     default:
       // Unknown message type - ignore
       break;
   }
-}); 
+});

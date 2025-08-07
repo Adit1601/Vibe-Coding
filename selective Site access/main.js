@@ -33,6 +33,19 @@ const el = {
   allowlistUrlError: document.getElementById('allowlist-url-error'),
   unlockPasswordError: document.getElementById('unlock-error'),
   resumeBtn: document.getElementById('resume-btn'),
+  // New elements for quick actions
+  quickBlockBtn: document.getElementById('quick-block-btn'),
+  currentSiteInfo: document.getElementById('current-site-info'),
+  // New elements for whitelist mode
+  whitelistModeToggle: document.getElementById('whitelist-mode-toggle'),
+  modeToggleSection: document.getElementById('mode-toggle-section'),
+  modeTitle: document.getElementById('mode-title'),
+  modeDescription: document.getElementById('mode-description'),
+  whitelistToggleText: document.getElementById('whitelist-toggle-text'),
+  blockedDomainsTitle: document.getElementById('blocked-domains-title'),
+  allowlistUrlsTitle: document.getElementById('allowlist-urls-title'),
+  blockDomainSubmit: document.getElementById('block-domain-submit'),
+  allowlistUrlSubmit: document.getElementById('allowlist-url-submit'),
 };
 
 // Show/hide password
@@ -79,7 +92,7 @@ el.autoRefreshToggle?.addEventListener('change', () => {
     return;
   }
   storage.setAutoRefreshConfig(enabled, getTimeMs(value, unit), () => {
-    ui.showToast(enabled ? 'Auto-refresh enabled!' : 'Auto-refresh disabled!');
+    ui.showToast(enabled ? 'Smart refresh enabled!' : 'Smart refresh disabled!');
   });
 });
 function handleAutoRefreshTimeChange() {
@@ -91,14 +104,14 @@ function handleAutoRefreshTimeChange() {
   }
   storage.getAutoRefreshConfig(({ enabled }) => {
     storage.setAutoRefreshConfig(enabled, getTimeMs(value, unit), () => {
-      ui.showToast(`Auto-refresh interval updated!`);
+      ui.showToast(`Smart refresh interval updated!`);
     });
   });
 }
 ui.bindTimeInputEvents(el.autoRefreshInterval, el.autoRefreshUnit, handleAutoRefreshTimeChange);
 el.refreshNowBtn?.addEventListener('click', () => {
   chrome.runtime.sendMessage({ type: 'refreshNow' }, () => {
-    ui.showToast('Refreshed matching tabs!');
+    ui.showToast('Refreshed blocked tabs!');
   });
 });
 
@@ -194,6 +207,113 @@ focusModeToggle.addEventListener('change', (e) => {
   storage.setFocusMode(e.target.checked, () => {
     ui.showToast(e.target.checked ? 'Focus Mode enabled' : 'Focus Mode disabled');
     chrome.runtime.sendMessage({ type: 'focusModeChanged' });
+  });
+});
+
+// Quick Actions - Block Current Site
+let currentSiteDomain = '';
+
+// Get current active tab and update quick block button
+function updateCurrentSiteInfo() {
+  if (el.currentSiteInfo && el.quickBlockBtn) {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0] && tabs[0].url) {
+        try {
+          const url = new URL(tabs[0].url);
+          currentSiteDomain = url.hostname.replace(/^www\./, '');
+          
+          if (url.protocol === 'http:' || url.protocol === 'https:') {
+            el.currentSiteInfo.textContent = `Current site: ${currentSiteDomain}`;
+            el.quickBlockBtn.disabled = false;
+            el.quickBlockBtn.textContent = `Block ${currentSiteDomain}`;
+          } else {
+            el.currentSiteInfo.textContent = 'Cannot block this type of page';
+            el.quickBlockBtn.disabled = true;
+            el.quickBlockBtn.textContent = 'Block Current Site';
+          }
+        } catch (e) {
+          el.currentSiteInfo.textContent = 'Invalid URL';
+          el.quickBlockBtn.disabled = true;
+          el.quickBlockBtn.textContent = 'Block Current Site';
+        }
+      } else {
+        el.currentSiteInfo.textContent = 'No active tab';
+        el.quickBlockBtn.disabled = true;
+        el.quickBlockBtn.textContent = 'Block Current Site';
+      }
+    });
+  }
+}
+
+// Make function globally available
+window.updateCurrentSiteInfo = updateCurrentSiteInfo;
+
+// Quick block button functionality
+el.quickBlockBtn?.addEventListener('click', () => {
+  if (!currentSiteDomain) {
+    ui.showToast('No valid site to block', true);
+    return;
+  }
+  
+  storage.getLists(({ blockedDomains, allowlistUrls }) => {
+    if (blockedDomains.includes(currentSiteDomain)) {
+      ui.showToast('Site is already blocked', true);
+      return;
+    }
+    
+    blockedDomains.push(currentSiteDomain);
+    storage.setLists(blockedDomains, allowlistUrls, () => {
+      ui.showToast(`Blocked ${currentSiteDomain}!`);
+      updateLists();
+      // Refresh the current tab to apply blocking immediately
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]) {
+          chrome.tabs.reload(tabs[0].id);
+        }
+      });
+    });
+  });
+});
+
+// Whitelist Mode Toggle
+function updateWhitelistModeUI() {
+  storage.getWhitelistMode((isWhitelistMode) => {
+    if (el.whitelistModeToggle) {
+      el.whitelistModeToggle.checked = isWhitelistMode;
+    }
+    
+    if (isWhitelistMode) {
+      // Whitelist mode UI
+      el.modeToggleSection?.classList.add('whitelist-active');
+      if (el.modeTitle) el.modeTitle.textContent = '🔒 Whitelist Mode Active';
+      if (el.modeDescription) el.modeDescription.textContent = 'Block everything except specifically allowed domains/URLs';
+      if (el.whitelistToggleText) el.whitelistToggleText.textContent = 'Switch to Standard Mode';
+      if (el.blockedDomainsTitle) el.blockedDomainsTitle.textContent = 'Allowed Domains';
+      if (el.allowlistUrlsTitle) el.allowlistUrlsTitle.textContent = 'Allowed URLs';
+      if (el.blockDomainSubmit) el.blockDomainSubmit.textContent = 'Allow';
+      if (el.allowlistUrlSubmit) el.allowlistUrlSubmit.textContent = 'Allow';
+      if (el.blockDomainInput) el.blockDomainInput.placeholder = 'e.g. google.com (domain to allow)';
+    } else {
+      // Standard mode UI
+      el.modeToggleSection?.classList.remove('whitelist-active');
+      if (el.modeTitle) el.modeTitle.textContent = '🛡️ Standard Blocking Mode';
+      if (el.modeDescription) el.modeDescription.textContent = 'Block specific domains, allow specific URLs within blocked domains';
+      if (el.whitelistToggleText) el.whitelistToggleText.textContent = 'Switch to Whitelist Mode (Block Everything Except Allowed)';
+      if (el.blockedDomainsTitle) el.blockedDomainsTitle.textContent = 'Blocked Domains';
+      if (el.allowlistUrlsTitle) el.allowlistUrlsTitle.textContent = 'Allowlist URLs';
+      if (el.blockDomainSubmit) el.blockDomainSubmit.textContent = 'Add';
+      if (el.allowlistUrlSubmit) el.allowlistUrlSubmit.textContent = 'Add';
+      if (el.blockDomainInput) el.blockDomainInput.placeholder = 'e.g. youtube.com';
+    }
+  });
+}
+
+el.whitelistModeToggle?.addEventListener('change', (e) => {
+  const isWhitelistMode = e.target.checked;
+  storage.setWhitelistMode(isWhitelistMode, () => {
+    updateWhitelistModeUI();
+    ui.showToast(isWhitelistMode ? 'Whitelist Mode enabled - Blocking everything except allowed sites' : 'Standard Mode enabled');
+    chrome.runtime.sendMessage({ type: 'whitelistModeChanged' });
   });
 });
 
@@ -318,6 +438,12 @@ document.getElementById('show-change-password').addEventListener('click', () => 
   document.getElementById('show-change-password').style.display = 'none';
   document.getElementById('change-password-form').style.display = 'block';
   document.getElementById('unlock-error').textContent = '';
+  
+  // Hide security warning when changing password
+  const securityWarning = document.getElementById('security-warning');
+  if (securityWarning) {
+    securityWarning.style.display = 'none';
+  }
 });
 
 document.getElementById('cancel-change-password').addEventListener('click', () => {
@@ -326,18 +452,30 @@ document.getElementById('cancel-change-password').addEventListener('click', () =
   document.getElementById('unlock-form').style.display = 'block';
   document.getElementById('show-change-password').style.display = 'block';
   document.getElementById('unlock-error').textContent = '';
+  
+  // Hide password strength indicators
+  document.getElementById('password-strength').style.display = 'none';
+  document.getElementById('password-strength-text').style.display = 'none';
+  
+  // Show security warning again if using default password
+  auth.checkAndShowSecurityWarning(storage.isDefaultPassword);
 });
 
 // Initialization
 function initialize() {
   storage.setLocked(true, () => {
     auth.showLockScreen();
+    // Check and show security warning for default password
+    auth.checkAndShowSecurityWarning(storage.isDefaultPassword);
     document.getElementById('main-ui').style.display = 'none';
   });
   updateLists();
+  updateCurrentSiteInfo();
+  updateWhitelistModeUI();
   ui.setDarkMode();
   ui.showPauseCountdown(storage.getPauseUntil, storage.getPauseStart);
   ui.updateFocusModeToggle(storage.getFocusMode);
+  ui.updateWhitelistModeToggle(storage.getWhitelistMode);
 }
 document.addEventListener('DOMContentLoaded', initialize);
 window.addEventListener('unload', () => {

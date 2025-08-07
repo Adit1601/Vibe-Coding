@@ -107,4 +107,14 @@ export function showPauseCountdown(getPauseUntil, getPauseStart) {
       }
     }
   });
+}
+
+// Update whitelist mode toggle
+export function updateWhitelistModeToggle(getWhitelistMode) {
+  const toggle = document.getElementById('whitelist-mode-toggle');
+  if (toggle) {
+    getWhitelistMode((enabled) => {
+      toggle.checked = enabled;
+    });
+  }
 } 

@@ -6,15 +6,22 @@ const STORAGE_KEYS = {
   allowlistUrls: 'allowlistUrls',
   locked: 'locked',
   password: 'password',
+  passwordSet: 'passwordSet', // Track if user has set a custom password
   pauseUntil: 'pauseUntil',
   pauseStart: 'pauseStart',
   focusMode: 'focusMode',
+  whitelistMode: 'whitelistMode', // New: Reverse mode - block everything except allowed
   autoRefreshEnabled: 'autoRefreshEnabled',
   autoRefreshInterval: 'autoRefreshInterval',
   autoRefreshDomains: 'autoRefreshDomains',
 };
 
-const DEFAULT_PASSWORD = 'Adit#@235791113';
+// Default password - users should change this for security
+// This is encoded to make it less obvious in the source code
+const getDefaultPassword = () => {
+  // Base64 encoded version of 'Adit#@235791113'
+  return atob('QWRpdCNAMjM1NzkxMTEz');
+};
 
 export function getLists(callback) {
   chrome.storage.sync.get([STORAGE_KEYS.blockedDomains, STORAGE_KEYS.allowlistUrls], (data) => {
@@ -44,12 +51,27 @@ export function getLocked(callback) {
 
 export function getPassword(callback) {
   chrome.storage.sync.get([STORAGE_KEYS.password], (data) => {
-    callback(data[STORAGE_KEYS.password] || DEFAULT_PASSWORD);
+    callback(data[STORAGE_KEYS.password] || getDefaultPassword());
   });
 }
 
 export function setPassword(newPassword, callback) {
-  chrome.storage.sync.set({ [STORAGE_KEYS.password]: newPassword }, callback);
+  chrome.storage.sync.set({ 
+    [STORAGE_KEYS.password]: newPassword,
+    [STORAGE_KEYS.passwordSet]: true 
+  }, callback);
+}
+
+export function isDefaultPassword(callback) {
+  chrome.storage.sync.get([STORAGE_KEYS.passwordSet, STORAGE_KEYS.password], (data) => {
+    if (data[STORAGE_KEYS.passwordSet]) {
+      callback(false); // User has set a custom password
+    } else {
+      // Check if current password is still the default
+      const currentPassword = data[STORAGE_KEYS.password] || getDefaultPassword();
+      callback(currentPassword === getDefaultPassword());
+    }
+  });
 }
 
 export function getPauseUntil(callback) {
@@ -101,4 +123,14 @@ export function setAutoRefreshConfig(enabled, interval, callback) {
     interval: interval,
     domains: [] // ignored in background now
   }, callback);
+}
+
+export function getWhitelistMode(callback) {
+  chrome.storage.sync.get([STORAGE_KEYS.whitelistMode], (data) => {
+    callback(!!data[STORAGE_KEYS.whitelistMode]);
+  });
+}
+
+export function setWhitelistMode(enabled, callback) {
+  chrome.storage.sync.set({ [STORAGE_KEYS.whitelistMode]: enabled }, callback);
 } 
