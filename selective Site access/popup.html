@@ -101,6 +101,11 @@
         padding: 6px 8px;
         background: rgba(255,255,255,0.02);
         border: 1px solid rgba(255,255,255,0.05);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 8px;
       }
       
       li:hover {
@@ -361,6 +366,16 @@
         pointer-events: none;
         white-space: pre-line;
       }
+      
+      /* Wider tooltip for pattern examples */
+      .pattern-examples-tooltip {
+        width: 360px !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        font-size: 0.9em !important;
+        line-height: 1.4 !important;
+      }
+      
       .custom-tooltip:hover .custom-tooltip-text {
         visibility: visible;
         opacity: 1;
@@ -418,6 +433,25 @@
         opacity: 0.6;
       }
       
+      #quick-allowlist-btn {
+        background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+        flex: 1;
+        min-width: 0;
+        font-size: 0.9em;
+        padding: 10px 12px;
+      }
+      
+      #quick-allowlist-btn:hover {
+        background: linear-gradient(135deg, #229954 0%, #1e8449 100%);
+        box-shadow: 0 4px 16px rgba(39, 174, 96, 0.3);
+      }
+      
+      #quick-allowlist-btn:disabled {
+        background: #666;
+        cursor: not-allowed;
+        opacity: 0.6;
+      }
+      
       #current-site-info {
         font-size: 0.85em;
         color: #b0b0b0;
@@ -426,35 +460,113 @@
         font-family: monospace;
       }
       
-      /* Whitelist Mode Styles */
-      .mode-toggle-section {
-        background: rgba(255, 152, 0, 0.1);
-        border: 1px solid #ff9800;
-        border-radius: 8px;
-        padding: 12px;
-        margin-bottom: 16px;
+      /* Pattern Rules Styling */
+      #pattern-examples {
+        font-family: 'Courier New', monospace;
       }
       
-      .mode-toggle-section.whitelist-active {
-        background: rgba(156, 39, 176, 0.15);
-        border-color: #9c27b0;
+      #pattern-examples code {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 2px 4px;
+        border-radius: 3px;
+        font-weight: bold;
+        color: #64b5f6;
       }
       
-      .mode-toggle-section h3 {
-        margin: 0 0 8px 0;
-        font-size: 1em;
-        color: #ffcc02;
+      .pattern-rule-item {
+        border-left: 4px solid #4caf50;
+        transition: all 0.3s ease;
       }
       
-      .mode-toggle-section.whitelist-active h3 {
-        color: #ce93d8;
+      .pattern-rule-item.disabled {
+        border-left-color: #666;
+        opacity: 0.6;
       }
       
-      .mode-description {
+      .pattern-rule-item:hover {
+        transform: translateX(2px);
+        box-shadow: 0 2px 8px rgba(25,118,210,0.2);
+      }
+      
+      .pattern-type-badge {
+        display: inline-block;
+        padding: 2px 6px;
+        background: rgba(25,118,210,0.2);
+        border-radius: 4px;
+        font-size: 0.8em;
+        color: #64b5f6;
+        font-weight: 500;
+        text-transform: uppercase;
+      }
+      
+      #pattern-type-select {
+        font-size: 0.9em;
+      }
+      
+      #pattern-input {
+        font-family: 'Courier New', monospace;
+        letter-spacing: 0.5px;
+      }
+      
+      /* Quick Rule Buttons */
+      .quick-rule-buttons {
+        gap: 8px;
+        margin-bottom: 15px;
+      }
+      
+      .quick-rule-btn {
+        background: rgba(25,118,210,0.1);
+        border: 1px solid rgba(25,118,210,0.3);
+        color: #64b5f6;
+        padding: 8px 12px;
+        border-radius: 6px;
         font-size: 0.85em;
-        color: #e0e0e0;
-        margin-bottom: 10px;
-        line-height: 1.4;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        white-space: nowrap;
+      }
+      
+      .quick-rule-btn:hover {
+        background: rgba(25,118,210,0.2);
+        border-color: rgba(25,118,210,0.5);
+        transform: translateY(-1px);
+      }
+      
+      .quick-rule-btn.active {
+        background: rgba(25,118,210,0.3);
+        border-color: rgba(25,118,210,0.6);
+        color: #fff;
+      }
+      
+      .advanced-toggle {
+        margin-left: auto;
+      }
+      
+      .rule-form-section {
+        margin-bottom: 15px;
+        padding: 15px;
+        background: rgba(255,255,255,0.02);
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.05);
+      }
+      
+      #blocking-rules-list {
+        margin-top: 15px;
+      }
+      
+      /* Responsive adjustments */
+      @media (max-width: 500px) {
+        .quick-rule-buttons {
+          flex-direction: column;
+        }
+        
+        .quick-rule-btn {
+          width: 100%;
+        }
+        
+        .advanced-toggle {
+          margin-left: 0;
+        }
       }
     </style>
   </head>
@@ -470,8 +582,8 @@
         <h2>Extension Locked</h2>
         <div id="security-warning" style="display:none; background: rgba(255, 152, 0, 0.1); border: 1px solid #ff9800; border-radius: 6px; padding: 12px; margin-bottom: 16px; color: #ffcc02;">
           <div style="font-size: 0.95em; font-weight: 500; margin-bottom: 4px;">🔒 Security Notice</div>
-          <div style="font-size: 0.85em; line-height: 1.4; margin-bottom: 6px;">You're using the default password. For better security, please change it using the "Change Password" button below.</div>
-          <div style="font-size: 0.8em; opacity: 0.8; font-family: monospace;">Current default: Adit#@235791113</div>
+          <div style="font-size: 0.85em; line-height: 1.4; margin-bottom: 6px;">You're using a generated default password. For better security, please change it using the "Change Password" button below.</div>
+          <div id="current-password-display" style="font-size: 0.8em; opacity: 0.8; font-family: monospace; display: none;">Current password will be shown once</div>
         </div>
         <form id="unlock-form">
           <div class="input-row">
@@ -529,41 +641,73 @@
         <div id="current-site-info">Loading current site...</div>
         <div class="quick-actions">
           <button id="quick-block-btn" disabled>Block Current Site</button>
+          <button id="quick-allowlist-btn" disabled title="Add current URL to allowlist">✅ Add to Allowlist</button>
+          <button id="debug-rules-btn" title="Debug current blocking rules (for troubleshooting)">🔍 Debug Rules</button>
         </div>
       </div>
       
-      <!-- Mode Toggle Section -->
-      <div class="mode-toggle-section" id="mode-toggle-section">
-        <h3 id="mode-title">🛡️ Standard Blocking Mode</h3>
-        <div class="mode-description" id="mode-description">
-          Block specific domains, allow specific URLs within blocked domains
-        </div>
-        <label style="display: flex; align-items: center; cursor: pointer;">
-          <input type="checkbox" id="whitelist-mode-toggle" style="vertical-align:middle; margin-right:8px;" />
-          <span id="whitelist-toggle-text">Switch to Whitelist Mode (Block Everything Except Allowed)</span>
-        </label>
-      </div>
-      
-      <div class="card" style="text-align:center;">
-        <div class="focus-mode-row">
-          <label style="font-size:1em; margin-bottom:0; font-weight:500;">
-            <input type="checkbox" id="focus-mode-toggle" style="vertical-align:middle; margin-right:8px;" />
-            Focus Mode
-          </label>
-          <span class="custom-tooltip">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="8"/></svg>
-            <span class="custom-tooltip-text">Block everything in blocklist, ignore allowlist</span>
-          </span>
-        </div>
-      </div>
       <div class="card">
-        <h2 id="blocked-domains-title">Blocked Domains</h2>
-        <form id="block-domain-form">
-          <input type="text" id="block-domain-input" placeholder="e.g. youtube.com" required />
-          <button type="submit" id="block-domain-submit">Add</button>
-        </form>
-        <div class="input-error" id="block-domain-error"></div>
-        <ul id="blocked-domains-list"></ul>
+        <h2>Blocking Rules</h2>
+        <p style="font-size: 0.9em; opacity: 0.8; margin-bottom: 15px;">
+          Block websites, specific sections, or content types with flexible rules
+        </p>
+        
+        <!-- Quick Action Buttons -->
+        <div class="quick-rule-buttons" style="display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap;">
+          <button type="button" id="quick-domain-btn" class="quick-rule-btn">
+            🌐 Block Domain
+          </button>
+          <button type="button" id="quick-youtube-shorts-btn" class="quick-rule-btn">
+            📱 Block YouTube Shorts
+          </button>
+          <button type="button" id="advanced-rule-toggle" class="quick-rule-btn advanced-toggle">
+            ⚙️ Advanced Rules
+          </button>
+        </div>
+        
+        <!-- Advanced Pattern Form (Hidden by default) -->
+        <div id="advanced-pattern-form" class="rule-form-section" style="display: none;">
+          <form id="pattern-rule-form">
+            <div style="margin-bottom: 10px;">
+              <select id="pattern-type-select" style="
+                width: 140px; 
+                background: var(--input-bg); 
+                color: var(--input-fg); 
+                border: 2px solid var(--border); 
+                border-radius: 8px; 
+                padding: 8px; 
+                margin-right: 10px;
+                font-size: 0.95em;
+              ">
+                <option value="domain">Block Domain</option>
+                <option value="path">Block URL Path</option>
+                <option value="url">Block URL Prefix</option>
+                <option value="regex">Advanced (Regex)</option>
+              </select>
+              <input type="text" id="pattern-input" placeholder="e.g. youtube.com" required style="width: calc(100% - 160px);" />
+              <span class="custom-tooltip">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-left: 4px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="8"/></svg>
+                <span class="custom-tooltip-text pattern-examples-tooltip">
+                  <strong>Examples:</strong><br>
+                  • <strong>Domain:</strong> youtube.com (blocks entire site)<br>
+                  • <strong>Path:</strong> */shorts/* (blocks YouTube Shorts)<br>
+                  • <strong>URL:</strong> https://example.com/ads (blocks specific section)<br>
+                  • <strong>Regex:</strong> facebook\.com\/(ads|advertising) (advanced matching)
+                </span>
+              </span>
+            </div>
+            <div style="margin-bottom: 10px; text-align: center;">
+              <button type="submit" id="pattern-rule-submit" style="padding: 8px 16px;">Add Rule</button>
+            </div>
+          </form>
+          <div class="input-error" id="pattern-rule-error"></div>
+        </div>
+        
+        <!-- Rules List -->
+        <div id="blocking-rules-list">
+          <div id="pattern-rules-list"></div>
+          <div id="legacy-domains-list" style="display: none;"></div>
+        </div>
       </div>
       <div class="card">
         <h2 id="allowlist-urls-title">Allowlist URLs</h2>

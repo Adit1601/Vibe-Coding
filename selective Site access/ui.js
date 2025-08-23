@@ -58,13 +58,6 @@ export function bindTimeInputEvents(valueInput, unitInput, onChange) {
   unitInput?.addEventListener('change', onChange);
 }
 
-// Update the Focus Mode toggle UI
-export function updateFocusModeToggle(getFocusMode) {
-  getFocusMode((enabled) => {
-    document.getElementById('focus-mode-toggle').checked = enabled;
-  });
-}
-
 // Show and update the pause countdown and progress bar
 let pauseInterval = null;
 export function showPauseCountdown(getPauseUntil, getPauseStart) {
@@ -107,14 +100,4 @@ export function showPauseCountdown(getPauseUntil, getPauseStart) {
       }
     }
   });
-}
-
-// Update whitelist mode toggle
-export function updateWhitelistModeToggle(getWhitelistMode) {
-  const toggle = document.getElementById('whitelist-mode-toggle');
-  if (toggle) {
-    getWhitelistMode((enabled) => {
-      toggle.checked = enabled;
-    });
-  }
 } 

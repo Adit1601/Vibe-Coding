@@ -1,34 +1,19 @@
 // =====================
 // Config & Constants
 // =====================
-/**
- * @constant {Object} STORAGE_KEYS
- * @description All chrome.storage keys used in the content script.
- */
+// Minimal constants needed for content script
 const STORAGE_KEYS = {
   blockedDomains: 'blockedDomains',
-  allowlistUrls: 'allowlistUrls',
-  pauseUntil: 'pauseUntil',
-  focusMode: 'focusMode',
-  whitelistMode: 'whitelistMode',
+  allowlistUrls: 'allowlistUrls', 
+  patternRules: 'patternRules',
+  pauseUntil: 'pauseUntil'
 };
 
-/**
- * @constant {string} BLOCKED_PAGE_PATH
- * @description Path to the blocked page shown when URLs are blocked.
- */
-const BLOCKED_PAGE_PATH = 'blocked.html';
+const CONFIG = {
+  BLOCKED_PAGE_PATH: '/blocked.html',
+  BLOCK_DELAY_MS: 100
+};
 
-/**
- * @constant {number} BLOCK_DELAY_MS
- * @description Delay before redirecting to blocked page (ms).
- */
-const BLOCK_DELAY_MS = 100;
-
-/**
- * @constant {string} YOUTUBE_HOSTNAME
- * @description YouTube hostname for domain checking.
- */
 const YOUTUBE_HOSTNAME = 'youtube.com';
 
 // =====================
@@ -45,34 +30,15 @@ function isPaused(callback) {
 }
 
 /**
- * Get focus mode state from storage.
- * @param {function} callback - Callback with boolean result
- */
-function getFocusMode(callback) {
-  chrome.storage.sync.get([STORAGE_KEYS.focusMode], (data) => {
-    callback(!!data[STORAGE_KEYS.focusMode]);
-  });
-}
-
-/**
- * Get whitelist mode state from storage.
- * @param {function} callback - Callback with boolean result
- */
-function getWhitelistMode(callback) {
-  chrome.storage.sync.get([STORAGE_KEYS.whitelistMode], (data) => {
-    callback(!!data[STORAGE_KEYS.whitelistMode]);
-  });
-}
-
-/**
- * Get blocklist and allowlist from storage.
- * @param {function} callback - Callback with {blocked, allowlist} object
+ * Get blocklist, allowlist, and pattern rules from storage.
+ * @param {function} callback - Callback with {blocked, allowlist, patterns} object
  */
 function getLists(callback) {
-  chrome.storage.sync.get([STORAGE_KEYS.blockedDomains, STORAGE_KEYS.allowlistUrls], (data) => {
+  chrome.storage.sync.get([STORAGE_KEYS.blockedDomains, STORAGE_KEYS.allowlistUrls, STORAGE_KEYS.patternRules], (data) => {
     callback({
       blocked: data[STORAGE_KEYS.blockedDomains] || [],
-      allowlist: data[STORAGE_KEYS.allowlistUrls] || []
+      allowlist: data[STORAGE_KEYS.allowlistUrls] || [],
+      patterns: data[STORAGE_KEYS.patternRules] || []
     });
   });
 }
@@ -81,37 +47,66 @@ function getLists(callback) {
 // URL Checking Module
 // =====================
 /**
- * Check if current URL should be blocked based on mode and settings.
- * @param {Array} blockedDomains - Array of blocked domain names (or allowed domains in whitelist mode)
+ * Check if a URL matches a pattern rule.
+ * @param {string} url - URL to check
+ * @param {Object} patternRule - Pattern rule object
+ * @returns {boolean} True if URL matches the pattern
+ */
+function matchesPattern(url, patternRule) {
+  if (!patternRule.enabled) return false;
+  
+  switch (patternRule.type) {
+    case 'path':
+      // Convert path pattern to regex
+      // Example: */shorts/* becomes .*/shorts/.*
+      const pathRegex = patternRule.pattern
+        .replace(/\*/g, '.*')
+        .replace(/\//g, '\\/');
+      return new RegExp(pathRegex, 'i').test(url);
+      
+    case 'regex':
+      try {
+        return new RegExp(patternRule.pattern, 'i').test(url);
+      } catch (e) {
+        console.warn('Invalid regex pattern:', patternRule.pattern);
+        return false;
+      }
+      
+    case 'url':
+      return url.startsWith(patternRule.pattern);
+      
+    case 'domain':
+      const hostname = new URL(url).hostname;
+      return hostname.endsWith(patternRule.pattern);
+      
+    default:
+      console.warn('Unknown pattern type:', patternRule.type);
+      return false;
+  }
+}
+
+/**
+ * Check if current URL should be blocked based on settings.
+ * @param {Array} blockedDomains - Array of blocked domain names
  * @param {Array} allowlistUrls - Array of allowed URLs
- * @param {boolean} focusMode - Whether focus mode is enabled
- * @param {boolean} whitelistMode - Whether whitelist mode is enabled
+ * @param {Array} patternRules - Array of pattern-based blocking rules
  * @returns {boolean} True if URL should be blocked
  */
-function shouldBlockUrl(blockedDomains, allowlistUrls, focusMode, whitelistMode) {
+function shouldBlockUrl(blockedDomains, allowlistUrls, patternRules) {
   const currentHostname = location.hostname;
   const currentUrl = location.href;
   
-  if (whitelistMode) {
-    // Whitelist mode: block everything except allowed domains/URLs
-    const isDomainAllowed = blockedDomains.some(domain => currentHostname.endsWith(domain));
-    const isUrlAllowed = allowlistUrls.some(url => currentUrl.startsWith(url));
-    
-    // Block if neither domain nor URL is explicitly allowed
-    return !isDomainAllowed && !isUrlAllowed;
-  }
+  // Check if URL matches any pattern rule
+  const matchesBlockingPattern = patternRules.some(rule => matchesPattern(currentUrl, rule));
   
-  // Standard or Focus mode
+  // Check if domain is in blocklist
   const isBlocked = blockedDomains.some(domain => currentHostname.endsWith(domain));
+  
+  // Check if URL is in allowlist
   const isAllowed = allowlistUrls.some(url => currentUrl.startsWith(url));
   
-  if (focusMode) {
-    // Focus mode: only check if domain is blocked, ignore allowlist
-    return isBlocked;
-  } else {
-    // Normal mode: block if domain is blocked AND URL is not in allowlist
-    return isBlocked && !isAllowed;
-  }
+  // Block if (domain is blocked OR matches pattern) AND URL is not in allowlist
+  return (isBlocked || matchesBlockingPattern) && !isAllowed;
 }
 
 /**
@@ -129,14 +124,40 @@ function redirectToBlockedPage() {
       // Instead of redirecting, replace the page content with our blocked page
       loadBlockedPageContent();
     }
-  }, BLOCK_DELAY_MS);
+  }, CONFIG.BLOCK_DELAY_MS);
+}
+
+/**
+ * More aggressive blocking for sites that don't respond to declarativeNetRequest
+ */
+function forceBlock() {
+  // Hide all content immediately
+  if (document.body) {
+    document.body.style.display = 'none';
+  }
+  
+  // Add CSS to hide everything
+  const style = document.createElement('style');
+  style.textContent = `
+    * { display: none !important; }
+    html, body { 
+      display: block !important; 
+      margin: 0 !important; 
+      padding: 0 !important; 
+      background: #667eea !important;
+    }
+  `;
+  document.head.appendChild(style);
+  
+  // Load blocked content
+  redirectToBlockedPage();
 }
 
 /**
  * Load and display the enhanced blocked page content directly.
  */
 function loadBlockedPageContent() {
-  fetch(chrome.runtime.getURL(BLOCKED_PAGE_PATH))
+  fetch(chrome.runtime.getURL(CONFIG.BLOCKED_PAGE_PATH))
     .then(response => response.text())
     .then(html => {
       // Replace the entire document with our blocked page
@@ -204,7 +225,7 @@ function showBasicBlockedPage() {
       </div>
     </div>
   `;
-  document.title = 'Focus Mode - Site Blocked';
+  document.title = 'Site Blocked';
 }
 
 // =====================
@@ -220,14 +241,11 @@ function checkAndBlock() {
       return; // Don't block if paused
     }
 
-    getWhitelistMode((whitelistMode) => {
-      getFocusMode((focusMode) => {
-        getLists(({ blocked, allowlist }) => {
-          if (shouldBlockUrl(blocked, allowlist, focusMode, whitelistMode)) {
-            redirectToBlockedPage();
-          }
-        });
-      });
+    getLists(({ blocked, allowlist, patterns }) => {
+      if (shouldBlockUrl(blocked, allowlist, patterns)) {
+        // Use more aggressive blocking for better reliability
+        forceBlock();
+      }
     });
   });
 }
@@ -262,18 +280,16 @@ function initializeSpaMonitoring() {
 // =====================
 /**
  * Initialize content script functionality.
- * Only runs on YouTube domain.
+ * Runs on all sites to check for blocking.
  */
 function initialize() {
-  // Only run on YouTube
-  if (location.hostname.endsWith(YOUTUBE_HOSTNAME)) {
-    // Check on initial load
-    checkAndBlock();
-    
-    // Set up SPA navigation monitoring
-    initializeSpaMonitoring();
-  }
+  // Check on initial load for all sites
+  checkAndBlock();
+  
+  // Set up SPA navigation monitoring for all sites
+  // This is especially important for YouTube, but useful for other SPAs too
+  initializeSpaMonitoring();
 }
 
 // Start the content script
-initialize(); 
+initialize();
