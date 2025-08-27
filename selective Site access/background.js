@@ -109,6 +109,8 @@ function validatePatternRule(patternRule) {
 // Rule ID Management
 // =====================
 let nextRuleId = 1;
+let ruleUpdateInProgress = false;
+let pendingRuleUpdateCallbacks = [];
 
 /**
  * Get a unique rule ID that doesn't conflict with existing rules
@@ -159,22 +161,113 @@ function getMultipleUniqueRuleIds(count) {
 // =====================
 // Rule Generation Module
 // =====================
+
+/**
+ * Create an optimized allowlist rule for a specific URL
+ * 
+ * This function creates a single, highly-optimized rule that replaces the previous
+ * approach of creating 3 separate rules (exact, regex, path) per URL.
+ * 
+ * Performance improvement: 66.7% reduction in rules (3 rules → 1 rule per URL)
+ * 
+ * @param {string} url - The URL to allow
+ * @param {number} ruleId - Unique rule ID
+ * @returns {Object|null} The optimized rule object or null if invalid
+ */
+function createOptimizedAllowlistRule(url, ruleId) {
+  if (!url || typeof url !== 'string') {
+    return null;
+  }
+  
+  try {
+    // Validate URL format
+    new URL(url);
+    
+    // Escape special regex characters for exact URL matching
+    // This creates a regex that matches the URL exactly, including query parameters
+    let escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // For URLs with fragments (#), we want to be more flexible since browsers
+    // often don't include fragments in the request URL
+    if (url.includes('#')) {
+      // Remove the fragment part and make it optional in the regex
+      const urlWithoutFragment = url.split('#')[0];
+      const fragmentPart = url.split('#')[1];
+      const escapedBase = urlWithoutFragment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escapedFragment = fragmentPart.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      escapedUrl = `${escapedBase}(?:#${escapedFragment})?`;
+    }
+    
+    // Create the optimized allow rule
+    return {
+      id: ruleId,
+      priority: RULE_PRIORITIES.ALLOW + 10, // High priority to override blocks
+      action: { type: 'allow' },
+      condition: {
+        regexFilter: `^${escapedUrl}$`, // Anchor to ensure exact match
+        resourceTypes: ["main_frame", "sub_frame"]
+      }
+    };
+    
+  } catch (e) {
+    // For malformed URLs, create a more permissive fallback rule
+    if (url.trim()) {
+      const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return {
+        id: ruleId,
+        priority: RULE_PRIORITIES.ALLOW, // Lower priority for malformed URLs
+        action: { type: 'allow' },
+        condition: {
+          regexFilter: escapedUrl, // No anchors for malformed URLs (more permissive)
+          resourceTypes: ["main_frame"]
+        }
+      };
+    }
+    return null;
+  }
+}
+
 /**
  * Generate declarativeNetRequest rules for pattern-based blocking and allowing specific URLs.
  * @param {Array} allowlistUrls - Array of specific URLs to allow
  * @param {Array} patternRules - Array of pattern-based blocking rules
- * @returns {Array} Array of rule objects for declarativeNetRequest
+ * @returns {Promise<Array>} Promise that resolves to array of rule objects for declarativeNetRequest
  */
-function generateRules(allowlistUrls, patternRules = []) {
-  let rules = [];
-  // Generate a truly unique starting ID as an integer to avoid conflicts
-  // Use a simpler approach that ensures integer values
-  let ruleId = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000);
+async function generateRules(allowlistUrls, patternRules = []) {
+  const rules = [];
   
   console.log('=== GENERATING RULES ===');
-  console.log('Starting rule ID:', ruleId);
   console.log('Allowlist URLs:', allowlistUrls);
   console.log('Pattern rules:', patternRules.length, 'rules');
+
+  // Calculate total number of rules we'll need
+  let totalRulesNeeded = 0;
+  
+  // Count allowlist rules (1 per URL with single optimized rule)
+  allowlistUrls.forEach(item => {
+    if (typeof item === 'string' || (typeof item === 'object' && item.url)) {
+      totalRulesNeeded += 1; // single optimized rule per URL
+    }
+  });
+  
+  // Count pattern rules (1 per enabled pattern)
+  patternRules.forEach(patternRule => {
+    if (patternRule.enabled) {
+      totalRulesNeeded += 1;
+    }
+  });
+  
+  console.log('Total rules needed:', totalRulesNeeded);
+  
+  // If no rules are needed, return empty array immediately
+  if (totalRulesNeeded === 0) {
+    console.log('=== RULE GENERATION COMPLETE: 0 total rules ===');
+    return rules;
+  }
+  
+  // Get unique rule IDs for all rules at once
+  const ruleIds = await getMultipleUniqueRuleIds(totalRulesNeeded);
+  let ruleIdIndex = 0;
 
   // Allow specific URLs (override all blocks) - highest priority
   allowlistUrls.forEach(item => {
@@ -189,83 +282,22 @@ function generateRules(allowlistUrls, patternRules = []) {
       return;
     }
     
-    // Try multiple approaches to ensure the allowlist rule works
-    try {
-      const urlObj = new URL(url);
-      
-      // Approach 1: Use urlFilter for broader matching
-      const exactRule = {
-        id: ruleId++,
-        priority: RULE_PRIORITIES.ALLOW + 15, // Highest priority
-        action: { type: 'allow' },
-        condition: {
-          urlFilter: url,
-          resourceTypes: ["main_frame", "sub_frame"]
-        }
-      };
-      
-      rules.push(exactRule);
-      console.log(`✅ Added EXACT ALLOW rule (priority ${exactRule.priority}):`, url);
-
-      // Approach 2: Use regex filter for exact URL matching (most reliable)
-      // Escape special regex characters in the URL
-      const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      
-      const regexRule = {
-        id: ruleId++,
-        priority: RULE_PRIORITIES.ALLOW + 10, // Even higher priority
-        action: { type: 'allow' },
-        condition: {
-          regexFilter: escapedUrl,
-          resourceTypes: ["main_frame", "sub_frame"]
-        }
-      };
-      
-      rules.push(regexRule);
-      console.log(`✅ Added REGEX ALLOW rule (priority ${regexRule.priority}):`, escapedUrl);
-      
-      // Approach 3: Also create a broader pattern for the path without query params
-      const pathPattern = `${urlObj.protocol}//${urlObj.host}${urlObj.pathname}*`;
-      
-      const pathRule = {
-        id: ruleId++,
-        priority: RULE_PRIORITIES.ALLOW + 5,
-        action: { type: 'allow' },
-        condition: {
-          urlFilter: pathPattern,
-          resourceTypes: ["main_frame"]
-        }
-      };
-      
-      rules.push(pathRule);
-      console.log(`✅ Added PATH ALLOW rule (priority ${pathRule.priority}):`, pathPattern);
-      
-    } catch (e) {
-      console.warn('Failed to parse allowlist URL:', url, e);
-      
-      // Fallback: try regex approach even for malformed URLs
-      const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const fallbackRule = {
-        id: ruleId++,
-        priority: RULE_PRIORITIES.ALLOW,
-        action: { type: 'allow' },
-        condition: {
-          regexFilter: escapedUrl,
-          resourceTypes: ["main_frame"]
-        }
-      };
-      
-      rules.push(fallbackRule);
-      console.log(`✅ Added FALLBACK REGEX ALLOW rule (priority ${fallbackRule.priority}):`, escapedUrl);
+    // Create a single, optimized allowlist rule
+    const allowRule = createOptimizedAllowlistRule(url, ruleIds[ruleIdIndex++]);
+    
+    if (allowRule) {
+      rules.push(allowRule);
+      console.log(`✅ Added OPTIMIZED ALLOW rule (priority ${allowRule.priority}):`, url);
+    } else {
+      console.warn('Failed to create allowlist rule for:', url);
     }
   });
 
   // Pattern-based blocking rules - medium priority
   patternRules.forEach(patternRule => {
-    const rule = patternToNetRequestRule(patternRule, ruleId);
+    const rule = patternToNetRequestRule(patternRule, ruleIds[ruleIdIndex++]);
     if (rule) {
       rules.push(rule);
-      ruleId++;
     }
   });
 
@@ -305,19 +337,55 @@ function getLists(callback) {
 /**
  * Update dynamic rules based on current state (paused state).
  * This is the main function that manages all blocking rules.
+ * Uses mutual exclusion to prevent race conditions from simultaneous updates.
  */
 function updateDynamicRules(callback) {
+  // If an update is already in progress, queue this callback
+  if (ruleUpdateInProgress) {
+    console.log('Rule update already in progress, queuing callback');
+    if (callback) {
+      pendingRuleUpdateCallbacks.push(callback);
+    }
+    return;
+  }
+  
+  ruleUpdateInProgress = true;
+  
+  const completeUpdate = () => {
+    ruleUpdateInProgress = false;
+    
+    // Execute the current callback
+    if (callback) {
+      callback();
+    }
+    
+    // Execute any queued callbacks
+    const queuedCallbacks = pendingRuleUpdateCallbacks.splice(0);
+    queuedCallbacks.forEach(cb => {
+      try {
+        cb();
+      } catch (error) {
+        console.error('Error in queued callback:', error);
+      }
+    });
+  };
+
   isPaused((paused) => {
     if (paused) {
       // Remove all dynamic rules while paused
-      removeAllDynamicRules(callback);
+      removeAllDynamicRules(completeUpdate);
       return;
     }
 
     // Standard mode: block patterns but allow specific URLs
-    getLists(({ allowlist, patterns }) => {
-      const rules = generateRules(allowlist, patterns);
-      updateDynamicRulesWithNewRules(rules, callback);
+    getLists(async ({ allowlist, patterns }) => {
+      try {
+        const rules = await generateRules(allowlist, patterns);
+        updateDynamicRulesWithNewRules(rules, completeUpdate);
+      } catch (error) {
+        console.error('Error generating rules:', error);
+        completeUpdate();
+      }
     });
   });
 }
@@ -359,8 +427,10 @@ function updateDynamicRulesWithNewRules(newRules, callback) {
     if (rule && rule.id && rule.action && rule.condition) {
       // Ensure rule ID is unique within this batch and is an integer
       if (usedIds.has(rule.id)) {
-        console.warn(`Duplicate rule ID ${rule.id} detected, generating new ID`);
-        rule.id = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000) + index;
+        console.error(`Critical error: Duplicate rule ID ${rule.id} detected in batch. This should not happen with the new ID generation system.`);
+        // Skip this rule instead of trying to fix it, as this indicates a deeper problem
+        console.error('Skipping duplicate rule:', rule);
+        return;
       }
       // Ensure the ID is an integer
       rule.id = Math.floor(rule.id);
@@ -552,8 +622,9 @@ function matchesPatternRule(url, patternRule) {
 }
 
 /**
- * Refresh tabs that have pattern rules blocked.
- * This is specifically for when pause ends or blocking is manually resumed.
+ * Refresh tabs that should be blocked after pause ends.
+ * Instead of re-implementing blocking logic, this uses a more comprehensive approach
+ * that trusts the declarativeNetRequest rules as the source of truth.
  */
 function refreshBlockedTabs() {
   getLists(({ allowlist, patterns }) => {
@@ -562,39 +633,125 @@ function refreshBlockedTabs() {
       return;
     }
 
+    console.log('Refreshing tabs after pause ended...');
+    
+    // Strategy: Refresh all non-allowlisted tabs from domains that have any blocking patterns
+    // This avoids duplicating complex pattern matching logic while being comprehensive
+    
     const isAllowlisted = (url) => allowlist.some(item => {
       const allowUrl = (typeof item === 'object' && item.url) ? item.url : item;
-      // Use startsWith for broader matching (e.g., allow a whole section of a site)
       return url.startsWith(allowUrl);
     });
 
-    const shouldBeBlocked = (url) => {
-      // Ensure URL is valid and not an internal chrome page
-      if (!url || !url.startsWith('http')) {
-        return false;
+    // Extract domains that have blocking patterns to get a broad scope of what might be blocked
+    const domainsWithPatterns = new Set();
+    const urlPrefixesWithPatterns = new Set();
+    
+    patterns.forEach(rule => {
+      if (!rule.enabled) return;
+      
+      switch (rule.type) {
+        case 'domain':
+          domainsWithPatterns.add(rule.pattern);
+          break;
+        case 'url':
+          // For URL patterns, extract the domain to include in refresh candidates
+          try {
+            const urlObj = new URL(rule.pattern);
+            domainsWithPatterns.add(urlObj.hostname);
+            urlPrefixesWithPatterns.add(rule.pattern);
+          } catch (e) {
+            // If not a valid URL, treat as a prefix
+            urlPrefixesWithPatterns.add(rule.pattern);
+          }
+          break;
+        case 'path':
+        case 'regex':
+          // For path and regex patterns, we can't easily extract domains
+          // So we'll need to be more liberal and refresh more tabs
+          // This is better than missing some that should be blocked
+          break;
       }
-      // Do not block allowlisted URLs
+    });
+
+    const mightBeBlocked = (url) => {
+      // Don't refresh allowlisted URLs
       if (isAllowlisted(url)) {
         return false;
       }
-
-      // Check against pattern rules only
-      return patterns.some(rule => matchesPatternRule(url, rule));
+      
+      // Don't refresh internal pages
+      if (!url || !url.startsWith('http')) {
+        return false;
+      }
+      
+      try {
+        const urlObj = new URL(url);
+        const hostname = urlObj.hostname;
+        
+        // Check if this domain has blocking patterns
+        if (domainsWithPatterns.has(hostname)) {
+          return true;
+        }
+        
+        // Check if hostname matches any domain pattern (including subdomains)
+        for (const domain of domainsWithPatterns) {
+          if (hostname === domain || hostname.endsWith('.' + domain)) {
+            return true;
+          }
+        }
+        
+        // Check if URL starts with any URL prefix patterns
+        for (const prefix of urlPrefixesWithPatterns) {
+          if (url.startsWith(prefix)) {
+            return true;
+          }
+        }
+        
+        // For path and regex patterns, we can't easily determine which domains they affect
+        // So if we have any path/regex patterns, we refresh tabs from popular domains
+        // that are commonly blocked to ensure we don't miss anything
+        const hasComplexPatterns = patterns.some(rule => 
+          rule.enabled && (rule.type === 'path' || rule.type === 'regex')
+        );
+        
+        if (hasComplexPatterns) {
+          // List of common domains that users often have complex patterns for
+          const commonBlockedDomains = [
+            'youtube.com', 'facebook.com', 'twitter.com', 'x.com', 'instagram.com',
+            'tiktok.com', 'reddit.com', 'twitch.tv', 'netflix.com', 'amazon.com'
+          ];
+          
+          return commonBlockedDomains.some(domain => 
+            hostname === domain || hostname.endsWith('.' + domain)
+          );
+        }
+        
+        return false;
+      } catch (e) {
+        // If URL parsing fails, err on the side of refreshing
+        return true;
+      }
     };
 
-    // Query for all active tabs in the current window
+    // Refresh candidate tabs
     chrome.tabs.query({ url: ["http://*/*", "https://*/*"] }, (tabs) => {
       let refreshCount = 0;
-      console.log(`Checking ${tabs.length} tabs for blocking...`);
+      console.log(`Checking ${tabs.length} tabs for potential blocking...`);
 
       tabs.forEach(tab => {
-        if (shouldBeBlocked(tab.url)) {
+        if (mightBeBlocked(tab.url)) {
           chrome.tabs.reload(tab.id);
           refreshCount++;
-          console.log(`✅ Refreshed tab that should be blocked: ${tab.url}`);
+          console.log(`✅ Refreshed tab (might be blocked): ${tab.url}`);
         }
       });
+      
       console.log(`=== REFRESH COMPLETE: ${refreshCount} tabs refreshed ===`);
+      
+      // Log helpful information for debugging
+      console.log('Domains with patterns:', Array.from(domainsWithPatterns));
+      console.log('URL prefixes with patterns:', Array.from(urlPrefixesWithPatterns));
     });
   });
 }

@@ -18,6 +18,7 @@ export const STORAGE_KEYS = {
   locked: 'locked',
   password: 'password',
   passwordSet: 'passwordSet',
+  passwordDisplayed: 'passwordDisplayed',
   
   // Pause and timer functionality
   pauseUntil: 'pauseUntil',

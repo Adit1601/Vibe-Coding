@@ -182,8 +182,10 @@ function shouldBlockUrl(allowlistUrls, patternRules) {
       return false;
     }
     
-    // Use startsWith for broader matching (allows query parameter differences)
-    return currentUrl.startsWith(allowUrl) || allowUrl.startsWith(currentUrl);
+    // Only allow if current URL starts with the allowlisted URL
+    // This correctly handles query parameter variations while preventing
+    // domain-level bypasses (e.g., allowlisting specific video shouldn't unblock entire domain)
+    return currentUrl.startsWith(allowUrl);
   });
   
   console.log('Content script check:', {

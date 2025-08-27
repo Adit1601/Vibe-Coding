@@ -94,6 +94,8 @@ export function getPassword(callback) {
 export function setPassword(newPassword, callback) {
   passwordManager.setPassword(newPassword)
     .then(() => {
+      // Clear the password displayed flag when user sets custom password
+      chrome.storage.sync.remove('passwordDisplayed');
       if (callback) callback();
     })
     .catch(error => {

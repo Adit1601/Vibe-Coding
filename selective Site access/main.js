@@ -950,17 +950,31 @@ document.getElementById('cancel-change-password').addEventListener('click', () =
   auth.checkAndShowSecurityWarning(storage.isDefaultPassword);
 });
 
-// Show generated password to user (only once)
+// Show generated password to user (persistent until user acknowledges)
 function showGeneratedPassword(password) {
   const passwordDisplay = document.getElementById('current-password-display');
   if (passwordDisplay) {
-    passwordDisplay.textContent = `Your generated password: ${password}`;
+    passwordDisplay.innerHTML = `
+      <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px; padding: 10px; margin: 10px 0;">
+        <strong>⚠️ Your generated password:</strong><br>
+        <code style="font-size: 14px; background: #f8f9fa; padding: 2px 4px; border-radius: 2px;">${password}</code><br>
+        <small style="color: #856404;">Please save this password! It will only be shown until you set a custom password.</small><br>
+        <button id="password-acknowledged" style="margin-top: 8px; padding: 4px 8px; background: #28a745; color: white; border: none; border-radius: 2px; cursor: pointer;">I've saved this password</button>
+      </div>
+    `;
     passwordDisplay.style.display = 'block';
     
-    // Hide after 10 seconds for security
-    setTimeout(() => {
-      passwordDisplay.style.display = 'none';
-    }, 10000);
+    // Mark as displayed but not acknowledged yet
+    chrome.storage.sync.set({ passwordDisplayed: true });
+    
+    // Add click handler for acknowledgment
+    const ackButton = document.getElementById('password-acknowledged');
+    if (ackButton) {
+      ackButton.addEventListener('click', () => {
+        passwordDisplay.style.display = 'none';
+        // Don't clear passwordDisplayed flag - keep it until password is changed
+      });
+    }
   }
 }
 
@@ -1001,6 +1015,13 @@ async function initialize() {
         console.log('🔐 Generated secure default password for first-time setup');
         // Show the generated password to user once
         showGeneratedPassword(defaultPassword);
+      } else {
+        // Check if we have a generated password that hasn't been displayed yet
+        const result = await chrome.storage.sync.get(['password', 'passwordSet', 'passwordDisplayed']);
+        if (result.password && !result.passwordSet && !result.passwordDisplayed) {
+          console.log('🔐 Showing previously generated password');
+          showGeneratedPassword(result.password);
+        }
       }
     } catch (error) {
       console.error('Failed to initialize password manager:', error);
