@@ -92,40 +92,6 @@ el.resumeBtn?.addEventListener('click', () => {
   });
 });
 
-// Keep old block domain form for backward compatibility (if it exists)
-const blockDomainForm = document.getElementById('block-domain-form');
-if (blockDomainForm) {
-  blockDomainForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const domain = el.blockDomainInput.value.trim();
-    el.blockDomainError.textContent = '';
-    if (!domain) {
-      el.blockDomainError.textContent = 'Domain cannot be empty.';
-      el.blockDomainInput.focus();
-      ui.showToast('Domain cannot be empty.', true);
-      return;
-    } else if (!isValidDomain(domain)) {
-      el.blockDomainError.textContent = 'Invalid domain format.';
-      el.blockDomainInput.focus();
-      ui.showToast('Invalid domain format.', true);
-      return;
-    }
-    storage.getLists(({ blockedDomains, allowlistUrls }) => {
-      if (!blockedDomains.includes(domain)) {
-        blockedDomains.push(domain);
-        storage.setLists(blockedDomains, allowlistUrls, () => {
-          ui.showToast('Blocked domain added!');
-          updateLists();
-        });
-      } else {
-        ui.showToast('Domain already blocked.', true);
-      }
-    });
-    el.blockDomainInput.value = '';
-  });
-  el.blockDomainInput.addEventListener('input', () => { el.blockDomainError.textContent = ''; });
-}
-
 // Allowlist URL form validation
 const allowlistUrlForm = document.getElementById('allowlist-url-form');
 allowlistUrlForm.addEventListener('submit', (e) => {
@@ -143,7 +109,7 @@ allowlistUrlForm.addEventListener('submit', (e) => {
     ui.showToast('Invalid URL format.', true);
     return;
   }
-  storage.getLists(({ blockedDomains, allowlistUrls }) => {
+  storage.getLists(({ allowlistUrls }) => {
     // Check if URL already exists (support both old string format and new object format)
     const urlExists = allowlistUrls.some(item => {
       if (typeof item === 'string') {
@@ -195,7 +161,7 @@ allowlistUrlForm.addEventListener('submit', (e) => {
         url: url,
         dateAdded: new Date().toISOString()
       });
-      storage.setLists(blockedDomains, allowlistUrls, () => {
+      storage.setLists([], allowlistUrls, () => {
         ui.showToast('Allowlist URL added!');
         updateLists();
       });
@@ -499,7 +465,7 @@ el.quickAllowlistBtn?.addEventListener('click', () => {
   }
   
   // Add the current URL to allowlist with smart default name
-  storage.getLists(({ blockedDomains, allowlistUrls }) => {
+  storage.getLists(({ allowlistUrls }) => {
     // Check if URL already exists (support both old string format and new object format)
     const urlExists = allowlistUrls.some(item => {
       if (typeof item === 'string') {
@@ -523,7 +489,7 @@ el.quickAllowlistBtn?.addEventListener('click', () => {
       dateAdded: new Date().toISOString()
     });
     
-    storage.setLists(blockedDomains, allowlistUrls, () => {
+    storage.setLists([], allowlistUrls, () => {
       ui.showToast(`✅ Added "${defaultName}" to allowlist!`);
       updateLists();
       console.log(`Added to allowlist: ${defaultName} (${currentSiteUrl})`);
@@ -570,8 +536,8 @@ el.debugRulesBtn?.addEventListener('click', () => {
 
 // Backup/Restore
 function updateLists() {
-  // Update allowlist URLs (keeping this separate for now)
-  storage.getLists(({ blockedDomains, allowlistUrls }) => {
+  // Update allowlist URLs
+  storage.getLists(({ allowlistUrls }) => {
     const allowlistList = document.getElementById('allowlist-urls-list');
     if (allowlistList) {
       allowlistList.innerHTML = '';
@@ -726,35 +692,26 @@ function updateLists() {
     }
     
     // Update unified blocking rules list
-    updateUnifiedBlockingRules(blockedDomains);
+    updateUnifiedBlockingRules();
   });
 }
 
-function updateUnifiedBlockingRules(legacyBlockedDomains = []) {
+function updateUnifiedBlockingRules() {
   const rulesList = document.getElementById('blocking-rules-list');
   if (!rulesList) return;
   
-  // Get pattern rules and combine with legacy blocked domains
+  // Get pattern rules only
   chrome.runtime.sendMessage({ type: 'getPatternRules' }, (response) => {
-    if (response.success) {
+    if (chrome.runtime.lastError) {
+      console.error('Error getting pattern rules:', chrome.runtime.lastError);
+      return;
+    }
+    
+    if (response && response.success) {
       const patternRules = response.rules || [];
       rulesList.innerHTML = '';
       
-      // Convert legacy blocked domains to display format
-      const legacyRules = legacyBlockedDomains.map((domain, idx) => ({
-        id: `legacy-${idx}`,
-        pattern: domain,
-        type: 'domain',
-        description: `Block ${domain} (Legacy)`,
-        enabled: true,
-        isLegacy: true,
-        legacyIndex: idx
-      }));
-      
-      // Combine and sort rules
-      const allRules = [...patternRules, ...legacyRules];
-      
-      if (allRules.length === 0) {
+      if (patternRules.length === 0) {
         const li = document.createElement('div');
         li.style.fontStyle = 'italic';
         li.style.opacity = '0.7';
@@ -765,10 +722,12 @@ function updateUnifiedBlockingRules(legacyBlockedDomains = []) {
         return;
       }
       
-      allRules.forEach((rule) => {
+      patternRules.forEach((rule) => {
         const ruleElement = createRuleElement(rule);
         rulesList.appendChild(ruleElement);
       });
+    } else {
+      console.error('Failed to get pattern rules:', response);
     }
   });
 }
@@ -808,7 +767,6 @@ function createRuleElement(rule) {
       <span style="margin-right: 8px; font-size: 1.2em;" title="${typeLabels[rule.type]} rule">${typeIcons[rule.type] || '⚙️'}</span>
       <strong style="color: ${rule.enabled ? '#4caf50' : '#999'}; font-size: 1.1em;">${rule.pattern}</strong>
       <span style="margin-left: 8px; padding: 3px 8px; background: rgba(25,118,210,0.2); border-radius: 4px; font-size: 0.8em; color: #64b5f6; text-transform: uppercase; font-weight: 500;">${typeLabels[rule.type]}</span>
-      ${rule.isLegacy ? '<span style="margin-left: 8px; padding: 3px 8px; background: rgba(255,152,0,0.2); border-radius: 4px; font-size: 0.75em; color: #ffab40;">LEGACY</span>' : ''}
     </div>
     <div style="font-size: 0.9em; opacity: 0.8; margin-bottom: 4px;">${rule.description}</div>
     ${rule.createdAt ? `<div style="font-size: 0.75em; opacity: 0.6;">Created: ${new Date(rule.createdAt).toLocaleDateString()}</div>` : ''}
@@ -819,30 +777,28 @@ function createRuleElement(rule) {
   actionsDiv.style.gap = '8px';
   actionsDiv.style.marginLeft = '12px';
   
-  if (!rule.isLegacy) {
-    // Toggle button for pattern rules
-    const toggleBtn = document.createElement('button');
-    toggleBtn.textContent = rule.enabled ? 'Disable' : 'Enable';
-    toggleBtn.style.padding = '6px 12px';
-    toggleBtn.style.fontSize = '0.8em';
-    toggleBtn.style.background = rule.enabled ? 'rgba(255, 152, 0, 0.8)' : 'rgba(76, 175, 80, 0.8)';
-    toggleBtn.style.border = 'none';
-    toggleBtn.style.borderRadius = '4px';
-    toggleBtn.style.color = 'white';
-    toggleBtn.style.cursor = 'pointer';
-    toggleBtn.onclick = () => {
-      const updatedRule = { ...rule, enabled: !rule.enabled };
-      chrome.runtime.sendMessage({ type: 'updatePatternRule', ruleId: rule.id, rule: updatedRule }, (response) => {
-        if (response.success) {
-          ui.showToast(`Rule ${updatedRule.enabled ? 'enabled' : 'disabled'}`);
-          updateLists();
-        } else {
-          ui.showToast(response.error, true);
-        }
-      });
-    };
-    actionsDiv.appendChild(toggleBtn);
-  }
+  // Toggle button for pattern rules
+  const toggleBtn = document.createElement('button');
+  toggleBtn.textContent = rule.enabled ? 'Disable' : 'Enable';
+  toggleBtn.style.padding = '6px 12px';
+  toggleBtn.style.fontSize = '0.8em';
+  toggleBtn.style.background = rule.enabled ? 'rgba(255, 152, 0, 0.8)' : 'rgba(76, 175, 80, 0.8)';
+  toggleBtn.style.border = 'none';
+  toggleBtn.style.borderRadius = '4px';
+  toggleBtn.style.color = 'white';
+  toggleBtn.style.cursor = 'pointer';
+  toggleBtn.onclick = () => {
+    const updatedRule = { ...rule, enabled: !rule.enabled };
+    chrome.runtime.sendMessage({ type: 'updatePatternRule', ruleId: rule.id, rule: updatedRule }, (response) => {
+      if (response.success) {
+        ui.showToast(`Rule ${updatedRule.enabled ? 'enabled' : 'disabled'}`);
+        updateLists();
+      } else {
+        ui.showToast(response.error, true);
+      }
+    });
+  };
+  actionsDiv.appendChild(toggleBtn);
   
   // Remove button
   const removeBtn = document.createElement('button');
@@ -856,22 +812,17 @@ function createRuleElement(rule) {
   removeBtn.style.cursor = 'pointer';
   removeBtn.onclick = () => {
     if (confirm(`Are you sure you want to remove the rule: ${rule.pattern}?`)) {
-      if (rule.isLegacy) {
-        // Remove legacy blocked domain
-        removeBlockedDomain(rule.legacyIndex);
-      } else {
-        // Remove pattern rule
-        chrome.runtime.sendMessage({ type: 'removePatternRule', ruleId: rule.id }, (response) => {
-          if (response.success) {
-            ui.showToast('Rule removed');
-            div.style.opacity = '0.5';
-            div.style.transform = 'translateX(-20px)';
-            setTimeout(() => updateLists(), 300);
-          } else {
-            ui.showToast('Error removing rule', true);
-          }
-        });
-      }
+      // Remove pattern rule
+      chrome.runtime.sendMessage({ type: 'removePatternRule', ruleId: rule.id }, (response) => {
+        if (response.success) {
+          ui.showToast('Rule removed');
+          div.style.opacity = '0.5';
+          div.style.transform = 'translateX(-20px)';
+          setTimeout(() => updateLists(), 300);
+        } else {
+          ui.showToast('Error removing rule', true);
+        }
+      });
     }
   };
   actionsDiv.appendChild(removeBtn);
@@ -882,27 +833,10 @@ function createRuleElement(rule) {
   return div;
 }
 
-function removeBlockedDomain(idx) {
-  storage.getLists(({ blockedDomains, allowlistUrls }) => {
-    const removed = blockedDomains.splice(idx, 1);
-    storage.setLists(blockedDomains, allowlistUrls, () => {
-      const blockedList = document.getElementById('blocked-domains-list');
-      const li = blockedList.children[idx];
-      if (li) {
-        li.classList.add('removed');
-        setTimeout(() => updateLists(), 700);
-      } else {
-        updateLists();
-      }
-      ui.showToast(`Removed: ${removed[0]}`);
-    });
-  });
-}
-
 function removeAllowlistUrl(idx) {
-  storage.getLists(({ blockedDomains, allowlistUrls }) => {
+  storage.getLists(({ allowlistUrls }) => {
     const removed = allowlistUrls.splice(idx, 1);
-    storage.setLists(blockedDomains, allowlistUrls, () => {
+    storage.setLists([], allowlistUrls, () => {
       const allowlistList = document.getElementById('allowlist-urls-list');
       const li = allowlistList.children[idx];
       if (li) {
@@ -926,13 +860,13 @@ function removeAllowlistUrl(idx) {
 }
 
 function editAllowlistName(idx, newName) {
-  storage.getLists(({ blockedDomains, allowlistUrls }) => {
+  storage.getLists(({ allowlistUrls }) => {
     const item = allowlistUrls[idx];
     
     // Only edit if it's an object format entry
     if (typeof item === 'object') {
       item.name = newName;
-      storage.setLists(blockedDomains, allowlistUrls, () => {
+      storage.setLists([], allowlistUrls, () => {
         ui.showToast(`Renamed to "${newName}"`);
         updateLists();
         console.log(`Renamed allowlist entry to: ${newName}`);
@@ -969,11 +903,11 @@ document.getElementById('import-file').addEventListener('change', (e) => {
   reader.onload = function(evt) {
     try {
       const data = JSON.parse(evt.target.result);
-      if (!Array.isArray(data.blockedDomains) || !Array.isArray(data.allowlistUrls)) {
+      if (!Array.isArray(data.allowlistUrls)) {
         ui.showToast('Invalid backup file.', true);
         return;
       }
-      storage.setLists(data.blockedDomains, data.allowlistUrls, () => {
+      storage.setLists([], data.allowlistUrls, () => {
         ui.showToast('Lists imported!');
         updateLists();
       });
@@ -1030,70 +964,60 @@ function showGeneratedPassword(password) {
   }
 }
 
+// Wake up service worker and ensure it's ready
+function ensureServiceWorkerReady(callback, retries = 3) {
+  chrome.runtime.sendMessage({ type: 'ping' }, (response) => {
+    if (chrome.runtime.lastError) {
+      console.log('Service worker not ready, retrying...', chrome.runtime.lastError.message);
+      if (retries > 0) {
+        setTimeout(() => ensureServiceWorkerReady(callback, retries - 1), 100);
+      } else {
+        console.error('Failed to wake up service worker after multiple attempts');
+        callback(false);
+      }
+    } else {
+      console.log('Service worker is ready');
+      callback(true);
+    }
+  });
+}
+
 // Initialization
 async function initialize() {
-  // Initialize password manager first
-  try {
-    const defaultPassword = await passwordManager.initialize();
-    if (defaultPassword) {
-      console.log('🔐 Generated secure default password for first-time setup');
-      // Show the generated password to user once
-      showGeneratedPassword(defaultPassword);
+  console.log('Initializing popup...');
+  
+  // First, ensure the service worker is awake and ready
+  ensureServiceWorkerReady(async (ready) => {
+    if (!ready) {
+      console.error('Service worker could not be woken up');
+      ui.showToast('Extension communication error. Please reload the extension.', true);
+      return;
     }
-  } catch (error) {
-    console.error('Failed to initialize password manager:', error);
-  }
-  
-  storage.setLocked(true, () => {
-    auth.showLockScreen();
-    // Check and show security warning for default password
-    auth.checkAndShowSecurityWarning(storage.isDefaultPassword);
-    document.getElementById('main-ui').style.display = 'none';
-  });
-  
-  // Migrate legacy domains if needed
-  migrateLegacyDomains();
-  
-  updateLists();
-  updateCurrentSiteInfo();
-  ui.setDarkMode();
-  ui.showPauseCountdown(storage.getPauseUntil, storage.getPauseStart);
-}
-// Legacy domain migration function
-async function migrateLegacyDomains() {
-  try {
-    const { blockedDomains } = await chrome.storage.sync.get(['blockedDomains']);
-    const { patternRules } = await chrome.storage.sync.get(['patternRules']);
     
-    if (blockedDomains && blockedDomains.length > 0) {
-      const currentPatterns = patternRules || [];
-      const migratedPatterns = [];
-      
-      for (const domain of blockedDomains) {
-        // Check if this domain is already in pattern rules
-        const exists = currentPatterns.some(rule => 
-          rule.type === 'domain' && rule.pattern === domain
-        );
-        
-        if (!exists) {
-          migratedPatterns.push({
-            type: 'domain',
-            pattern: domain,
-            action: 'block',
-            description: `Migrated from legacy domain blocking: ${domain}`
-          });
-        }
+    // Initialize password manager first
+    try {
+      const defaultPassword = await passwordManager.initialize();
+      if (defaultPassword) {
+        console.log('🔐 Generated secure default password for first-time setup');
+        // Show the generated password to user once
+        showGeneratedPassword(defaultPassword);
       }
-      
-      if (migratedPatterns.length > 0) {
-        const allPatterns = [...currentPatterns, ...migratedPatterns];
-        await chrome.storage.sync.set({ patternRules: allPatterns });
-        console.log(`Migrated ${migratedPatterns.length} legacy domains to pattern rules`);
-      }
+    } catch (error) {
+      console.error('Failed to initialize password manager:', error);
     }
-  } catch (error) {
-    console.error('Error migrating legacy domains:', error);
-  }
+    
+    storage.setLocked(true, () => {
+      auth.showLockScreen();
+      // Check and show security warning for default password
+      auth.checkAndShowSecurityWarning(storage.isDefaultPassword);
+      document.getElementById('main-ui').style.display = 'none';
+    });
+    
+    updateLists();
+    updateCurrentSiteInfo();
+    ui.setDarkMode();
+    ui.showPauseCountdown(storage.getPauseUntil, storage.getPauseStart);
+  });
 }
 
 document.addEventListener('DOMContentLoaded', initialize);

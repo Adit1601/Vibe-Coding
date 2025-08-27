@@ -11,7 +11,6 @@
  */
 export const STORAGE_KEYS = {
   // Core blocking functionality
-  blockedDomains: 'blockedDomains',
   allowlistUrls: 'allowlistUrls',
   patternRules: 'patternRules',
   
@@ -54,7 +53,6 @@ export const CONFIG = {
   MAX_REGEX_EXECUTION_TIME: 1000,
   
   // Storage limits
-  MAX_BLOCKED_DOMAINS: 1000,
   MAX_ALLOWLIST_URLS: 500,
   MAX_PATTERN_RULES: 500,
   
@@ -126,7 +124,6 @@ export const DEFAULT_SETTINGS = {
   pauseUntil: 0,
   pauseStart: 0,
   blockCount: 0,
-  blockedDomains: [],
   allowlistUrls: [],
   patternRules: [],
 };

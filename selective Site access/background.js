@@ -22,14 +22,19 @@ function patternToNetRequestRule(patternRule, ruleId) {
   switch (patternRule.type) {
     case 'path':
       // Convert path pattern to URL filter
-      // Example: */shorts/* becomes *shorts*
-      let urlFilter = patternRule.pattern
-        .replace(/\*/g, '*')  // Keep wildcards
-        .replace(/^\//, '')   // Remove leading slash
-        .replace(/\/$/, '');  // Remove trailing slash
+      // Example: */shorts/* becomes */shorts/*
+      let urlFilter = patternRule.pattern;
+      
+      // Ensure the pattern works correctly for Chrome's urlFilter
+      if (!urlFilter.startsWith('*')) {
+        urlFilter = '*' + urlFilter;
+      }
+      if (!urlFilter.endsWith('*')) {
+        urlFilter = urlFilter + '*';
+      }
       
       condition = {
-        urlFilter: `*${urlFilter}*`,
+        urlFilter: urlFilter,
         resourceTypes: ["main_frame"]
       };
       break;
@@ -101,21 +106,73 @@ function validatePatternRule(patternRule) {
 }
 
 // =====================
+// Rule ID Management
+// =====================
+let nextRuleId = 1;
+
+/**
+ * Get a unique rule ID that doesn't conflict with existing rules
+ * @returns {Promise<number>} A unique rule ID
+ */
+function getUniqueRuleId() {
+  return new Promise((resolve) => {
+    chrome.declarativeNetRequest.getDynamicRules((existingRules) => {
+      const existingIds = new Set(existingRules.map(rule => rule.id));
+      
+      // Find the next available ID
+      while (existingIds.has(nextRuleId)) {
+        nextRuleId++;
+      }
+      
+      const uniqueId = nextRuleId;
+      nextRuleId++; // Increment for next use
+      resolve(uniqueId);
+    });
+  });
+}
+
+/**
+ * Generate multiple unique rule IDs
+ * @param {number} count - Number of IDs needed
+ * @returns {Promise<number[]>} Array of unique rule IDs
+ */
+function getMultipleUniqueRuleIds(count) {
+  return new Promise((resolve) => {
+    chrome.declarativeNetRequest.getDynamicRules((existingRules) => {
+      const existingIds = new Set(existingRules.map(rule => rule.id));
+      const uniqueIds = [];
+      
+      for (let i = 0; i < count; i++) {
+        while (existingIds.has(nextRuleId)) {
+          nextRuleId++;
+        }
+        uniqueIds.push(nextRuleId);
+        existingIds.add(nextRuleId); // Add to set to avoid duplicates in this batch
+        nextRuleId++;
+      }
+      
+      resolve(uniqueIds);
+    });
+  });
+}
+
+// =====================
 // Rule Generation Module
 // =====================
 /**
- * Generate declarativeNetRequest rules for blocking domains and allowing specific URLs.
- * @param {Array} blockedDomains - Array of domain names to block
+ * Generate declarativeNetRequest rules for pattern-based blocking and allowing specific URLs.
  * @param {Array} allowlistUrls - Array of specific URLs to allow
  * @param {Array} patternRules - Array of pattern-based blocking rules
  * @returns {Array} Array of rule objects for declarativeNetRequest
  */
-function generateRules(blockedDomains, allowlistUrls, patternRules = []) {
+function generateRules(allowlistUrls, patternRules = []) {
   let rules = [];
-  let ruleId = 1;
+  // Generate a truly unique starting ID as an integer to avoid conflicts
+  // Use a simpler approach that ensures integer values
+  let ruleId = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000);
   
   console.log('=== GENERATING RULES ===');
-  console.log('Blocked domains:', blockedDomains);
+  console.log('Starting rule ID:', ruleId);
   console.log('Allowlist URLs:', allowlistUrls);
   console.log('Pattern rules:', patternRules.length, 'rules');
 
@@ -136,7 +193,21 @@ function generateRules(blockedDomains, allowlistUrls, patternRules = []) {
     try {
       const urlObj = new URL(url);
       
-      // Approach 1: Use regex filter for exact URL matching (most reliable)
+      // Approach 1: Use urlFilter for broader matching
+      const exactRule = {
+        id: ruleId++,
+        priority: RULE_PRIORITIES.ALLOW + 15, // Highest priority
+        action: { type: 'allow' },
+        condition: {
+          urlFilter: url,
+          resourceTypes: ["main_frame", "sub_frame"]
+        }
+      };
+      
+      rules.push(exactRule);
+      console.log(`✅ Added EXACT ALLOW rule (priority ${exactRule.priority}):`, url);
+
+      // Approach 2: Use regex filter for exact URL matching (most reliable)
       // Escape special regex characters in the URL
       const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       
@@ -145,15 +216,15 @@ function generateRules(blockedDomains, allowlistUrls, patternRules = []) {
         priority: RULE_PRIORITIES.ALLOW + 10, // Even higher priority
         action: { type: 'allow' },
         condition: {
-          regexFilter: escapedUrl, // Remove ^ and $ anchors to be less strict
-          resourceTypes: ["main_frame", "sub_frame", "xmlhttprequest", "script", "stylesheet", "image", "media", "font", "websocket", "other"]
+          regexFilter: escapedUrl,
+          resourceTypes: ["main_frame", "sub_frame"]
         }
       };
       
       rules.push(regexRule);
       console.log(`✅ Added REGEX ALLOW rule (priority ${regexRule.priority}):`, escapedUrl);
       
-      // Approach 2: Also create a broader pattern for the path without query params
+      // Approach 3: Also create a broader pattern for the path without query params
       const pathPattern = `${urlObj.protocol}//${urlObj.host}${urlObj.pathname}*`;
       
       const pathRule = {
@@ -162,7 +233,7 @@ function generateRules(blockedDomains, allowlistUrls, patternRules = []) {
         action: { type: 'allow' },
         condition: {
           urlFilter: pathPattern,
-          resourceTypes: ["main_frame", "sub_frame", "xmlhttprequest", "script", "stylesheet", "image", "media", "font", "websocket", "other"]
+          resourceTypes: ["main_frame"]
         }
       };
       
@@ -179,8 +250,8 @@ function generateRules(blockedDomains, allowlistUrls, patternRules = []) {
         priority: RULE_PRIORITIES.ALLOW,
         action: { type: 'allow' },
         condition: {
-          regexFilter: escapedUrl, // Remove anchors here too
-          resourceTypes: ["main_frame", "sub_frame", "xmlhttprequest", "script", "stylesheet", "image", "media", "font", "websocket", "other"]
+          regexFilter: escapedUrl,
+          resourceTypes: ["main_frame"]
         }
       };
       
@@ -196,25 +267,6 @@ function generateRules(blockedDomains, allowlistUrls, patternRules = []) {
       rules.push(rule);
       ruleId++;
     }
-  });
-
-  // Block all URLs for each blocked domain - lowest priority
-  blockedDomains.forEach(domain => {
-    const blockRule = {
-      id: ruleId++,
-      priority: RULE_PRIORITIES.BLOCK,
-      action: { 
-        type: 'redirect', 
-        redirect: { extensionPath: CONFIG.BLOCKED_PAGE_PATH } 
-      },
-      condition: {
-        urlFilter: `||${domain}^`,
-        resourceTypes: ["main_frame"]
-      }
-    };
-    
-    rules.push(blockRule);
-    console.log(`🚫 Added BLOCK rule (priority ${RULE_PRIORITIES.BLOCK}):`, domain);
   });
 
   console.log(`=== RULE GENERATION COMPLETE: ${rules.length} total rules ===`);
@@ -236,12 +288,11 @@ function isPaused(callback) {
 
 /**
  * Get blocklist, allowlist, and pattern rules from storage.
- * @param {function} callback - Callback with {blocked, allowlist, patterns} object
+ * @param {function} callback - Callback with {allowlist, patterns} object
  */
 function getLists(callback) {
-  chrome.storage.sync.get([STORAGE_KEYS.blockedDomains, STORAGE_KEYS.allowlistUrls, STORAGE_KEYS.patternRules], (data) => {
+  chrome.storage.sync.get([STORAGE_KEYS.allowlistUrls, STORAGE_KEYS.patternRules], (data) => {
     callback({
-      blocked: data[STORAGE_KEYS.blockedDomains] || [],
       allowlist: data[STORAGE_KEYS.allowlistUrls] || [],
       patterns: data[STORAGE_KEYS.patternRules] || []
     });
@@ -255,18 +306,18 @@ function getLists(callback) {
  * Update dynamic rules based on current state (paused state).
  * This is the main function that manages all blocking rules.
  */
-function updateDynamicRules() {
+function updateDynamicRules(callback) {
   isPaused((paused) => {
     if (paused) {
       // Remove all dynamic rules while paused
-      removeAllDynamicRules();
+      removeAllDynamicRules(callback);
       return;
     }
 
-    // Standard mode: block domains and patterns but allow specific URLs
-    getLists(({ blocked, allowlist, patterns }) => {
-      const rules = generateRules(blocked, allowlist, patterns);
-      updateDynamicRulesWithNewRules(rules);
+    // Standard mode: block patterns but allow specific URLs
+    getLists(({ allowlist, patterns }) => {
+      const rules = generateRules(allowlist, patterns);
+      updateDynamicRulesWithNewRules(rules, callback);
     });
   });
 }
@@ -274,12 +325,17 @@ function updateDynamicRules() {
 /**
  * Remove all existing dynamic rules.
  */
-function removeAllDynamicRules() {
+function removeAllDynamicRules(callback) {
   chrome.declarativeNetRequest.getDynamicRules((existingRules) => {
     const removeRuleIds = existingRules.map(r => r.id);
     chrome.declarativeNetRequest.updateDynamicRules({
       removeRuleIds,
       addRules: []
+    }, () => {
+      if (chrome.runtime.lastError) {
+        console.error('Error removing rules:', chrome.runtime.lastError.message || chrome.runtime.lastError);
+      }
+      if (callback) callback();
     });
   });
 }
@@ -292,27 +348,86 @@ function removeAllDynamicRules() {
  * Apply an array of new blocking rules, replacing all existing ones.
  * @param {Array} newRules - Array of new rules to apply
  */
-function updateDynamicRulesWithNewRules(newRules) {
+function updateDynamicRulesWithNewRules(newRules, callback) {
   console.log('Updating dynamic rules with:', newRules.length, 'rules');
-  newRules.forEach(rule => {
-    console.log('Rule:', rule.id, rule.action.type, rule.condition.urlFilter);
+  
+  // Validate rules before applying
+  const validRules = [];
+  const usedIds = new Set(); // Track IDs to ensure uniqueness within this batch
+  
+  newRules.forEach((rule, index) => {
+    if (rule && rule.id && rule.action && rule.condition) {
+      // Ensure rule ID is unique within this batch and is an integer
+      if (usedIds.has(rule.id)) {
+        console.warn(`Duplicate rule ID ${rule.id} detected, generating new ID`);
+        rule.id = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000) + index;
+      }
+      // Ensure the ID is an integer
+      rule.id = Math.floor(rule.id);
+      usedIds.add(rule.id);
+      validRules.push(rule);
+      console.log(`Rule ${rule.id}: ${rule.action.type} (priority: ${rule.priority}) - ${rule.condition.urlFilter || rule.condition.regexFilter || 'unknown'}`);
+    } else {
+      console.warn(`Invalid rule at index ${index}:`, rule);
+    }
   });
   
+  if (validRules.length !== newRules.length) {
+    console.warn(`Filtered out ${newRules.length - validRules.length} invalid rules`);
+  }
+  
+  // First, remove all existing dynamic rules
   chrome.declarativeNetRequest.getDynamicRules((existingRules) => {
     const removeRuleIds = existingRules.map(r => r.id);
     console.log('Removing existing rules:', removeRuleIds);
     
+    // Check for rule limits
+    if (validRules.length > 5000) {
+      console.error('Too many rules! Chrome limit is 5000, attempting to add:', validRules.length);
+      if (callback) callback();
+      return;
+    }
+    
+    // Remove existing rules first, then add new ones
+    if (removeRuleIds.length > 0) {
+      chrome.declarativeNetRequest.updateDynamicRules({
+        removeRuleIds
+      }, () => {
+        if (chrome.runtime.lastError) {
+          console.error('Error removing existing rules:', chrome.runtime.lastError.message || chrome.runtime.lastError);
+          if (callback) callback();
+          return;
+        }
+        
+        // Now add the new rules
+        addNewRules(validRules, callback);
+      });
+    } else {
+      // No existing rules to remove, just add new ones
+      addNewRules(validRules, callback);
+    }
+  });
+  
+  function addNewRules(rules, callback) {
+    if (rules.length === 0) {
+      console.log('No rules to add');
+      if (callback) callback();
+      return;
+    }
+    
     chrome.declarativeNetRequest.updateDynamicRules({
-      removeRuleIds,
-      addRules: newRules
+      addRules: rules
     }, () => {
       if (chrome.runtime.lastError) {
-        console.error('Error updating rules:', chrome.runtime.lastError);
+        console.error('Error adding new rules:', chrome.runtime.lastError.message || chrome.runtime.lastError);
+        console.error('Failed rules count:', rules.length);
+        console.error('Sample of rules that failed:', JSON.stringify(rules.slice(0, 3), null, 2));
       } else {
-        console.log('Successfully updated rules');
+        console.log('Successfully added', rules.length, 'new rules');
       }
+      if (callback) callback();
     });
-  });
+  }
 }
 
 // =====================
@@ -367,15 +482,13 @@ function setPauseEndAlarm() {
 function handlePauseEnd() {
   console.log('=== PAUSE PERIOD ENDED ===');
   console.log('Current time:', new Date().toLocaleString());
-  console.log('Refreshing blocked tabs and updating rules...');
+  console.log('Re-enabling blocking rules and refreshing relevant tabs...');
   
-  // Update rules first
-  updateDynamicRules();
-  
-  // Wait a bit for rules to update, then refresh blocked tabs
-  setTimeout(() => {
+  // Update rules first, and then refresh tabs in the callback
+  updateDynamicRules(() => {
+    console.log('Rules have been re-enabled. Refreshing tabs now.');
     refreshBlockedTabs();
-  }, 1000);
+  });
 }
 
 /**
@@ -422,8 +535,15 @@ function matchesPatternRule(url, patternRule) {
       return url.startsWith(patternRule.pattern);
       
     case 'domain':
-      const hostname = new URL(url).hostname;
-      return hostname.endsWith(patternRule.pattern);
+      try {
+        const hostname = new URL(url).hostname;
+        const pattern = patternRule.pattern;
+        // Exact match or subdomain match (e.g., pattern 'google.com' matches 'google.com' and 'www.google.com')
+        return hostname === pattern || hostname.endsWith('.' + pattern);
+      } catch (e) {
+        // Invalid URL cannot match a domain.
+        return false;
+      }
       
     default:
       console.warn('Unknown pattern type:', patternRule.type);
@@ -432,115 +552,52 @@ function matchesPatternRule(url, patternRule) {
 }
 
 /**
- * Refresh tabs that have blocked domains open.
+ * Refresh tabs that have pattern rules blocked.
  * This is specifically for when pause ends or blocking is manually resumed.
  */
 function refreshBlockedTabs() {
-  chrome.storage.sync.get([STORAGE_KEYS.blockedDomains, STORAGE_KEYS.allowlistUrls, STORAGE_KEYS.patternRules], (data) => {
-    const blockedDomains = data[STORAGE_KEYS.blockedDomains] || [];
-    const allowlistUrls = data[STORAGE_KEYS.allowlistUrls] || [];
-    const patternRules = data[STORAGE_KEYS.patternRules] || [];
-    
-    console.log('refreshBlockedTabs called with:');
-    console.log('- Blocked domains:', blockedDomains);
-    console.log('- Allowlist URLs:', allowlistUrls.length, 'URLs');
-    console.log('- Pattern rules:', patternRules.length, 'rules');
-    
-    if (blockedDomains.length === 0 && patternRules.length === 0) {
-      console.log('No blocked domains or pattern rules found - nothing to refresh');
+  getLists(({ allowlist, patterns }) => {
+    if (patterns.length === 0) {
+      console.log('No pattern rules found - nothing to refresh');
       return;
     }
-    
-    // Helper function to check if URL is in allowlist
-    const isInAllowlist = (url) => {
-      return allowlistUrls.some(item => {
-        if (typeof item === 'string') {
-          return item === url;
-        } else if (typeof item === 'object' && item.url) {
-          return item.url === url;
-        }
+
+    const isAllowlisted = (url) => allowlist.some(item => {
+      const allowUrl = (typeof item === 'object' && item.url) ? item.url : item;
+      // Use startsWith for broader matching (e.g., allow a whole section of a site)
+      return url.startsWith(allowUrl);
+    });
+
+    const shouldBeBlocked = (url) => {
+      // Ensure URL is valid and not an internal chrome page
+      if (!url || !url.startsWith('http')) {
         return false;
-      });
+      }
+      // Do not block allowlisted URLs
+      if (isAllowlisted(url)) {
+        return false;
+      }
+
+      // Check against pattern rules only
+      return patterns.some(rule => matchesPatternRule(url, rule));
     };
-    
-    chrome.tabs.query({}, (tabs) => {
+
+    // Query for all active tabs in the current window
+    chrome.tabs.query({ url: ["http://*/*", "https://*/*"] }, (tabs) => {
       let refreshCount = 0;
       console.log(`Checking ${tabs.length} tabs for blocking...`);
-      
+
       tabs.forEach(tab => {
-        if (tab.url) {
-          let shouldRefresh = false;
-          
-          // Case 1: Tab is showing a blocked domain directly
-          if (tab.url.startsWith('http')) {
-            // FIRST: Check if this URL is in allowlist - if so, never refresh it
-            if (isInAllowlist(tab.url)) {
-              console.log(`Tab is in allowlist, skipping refresh: ${tab.url}`);
-              return;
-            }
-            
-            const domain = extractDomain(tab.url);
-            
-            // Check if domain is in blocked domains list
-            if (blockedDomains.includes(domain)) {
-              shouldRefresh = true;
-              console.log(`Tab matches blocked domain: ${domain}`);
-            }
-            
-            // Check if URL matches any pattern rule
-            if (!shouldRefresh) {
-              for (const rule of patternRules) {
-                if (rule.enabled && matchesPatternRule(tab.url, rule)) {
-                  shouldRefresh = true;
-                  console.log(`Tab matches pattern rule: ${rule.pattern} (${rule.type})`);
-                  break;
-                }
-              }
-            }
-            
-            if (shouldRefresh) {
-              chrome.tabs.reload(tab.id);
-              refreshCount++;
-              console.log(`✅ Refreshed blocked tab: ${domain} (${tab.url})`);
-            }
-          }
-          // Case 2: Tab is showing the blocked.html page (old blocked page)
-          else if (tab.url.includes('blocked.html')) {
-            chrome.tabs.reload(tab.id);
-            refreshCount++;
-            console.log(`✅ Refreshed blocked.html tab: ${tab.url}`);
-          }
+        if (shouldBeBlocked(tab.url)) {
+          chrome.tabs.reload(tab.id);
+          refreshCount++;
+          console.log(`✅ Refreshed tab that should be blocked: ${tab.url}`);
         }
       });
       console.log(`=== REFRESH COMPLETE: ${refreshCount} tabs refreshed ===`);
     });
   });
 }
-
-/**
- * Initialize pause monitoring.
- */
-function initializePauseMonitoring() {
-  console.log('Initializing pause monitoring...');
-  
-  // Check if there's an active pause and set alarm if needed
-  chrome.storage.sync.get([STORAGE_KEYS.pauseUntil], (data) => {
-    const pauseUntil = data[STORAGE_KEYS.pauseUntil] || 0;
-    if (pauseUntil > Date.now()) {
-      setPauseEndAlarm();
-      console.log('Found active pause period - setting alarm for auto-refresh when pause ends');
-    }
-  });
-}
-
-// Listen for alarm events
-chrome.alarms.onAlarm.addListener((alarm) => {
-  console.log('Alarm triggered:', alarm);
-  if (alarm && alarm.name === 'pauseEndAlarm') {
-    console.log('Pause end alarm triggered - calling handlePauseEnd()');
-    handlePauseEnd();
-  }
-});
 
 // =====================
 // Event Listeners
@@ -551,8 +608,8 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'sync') {
     // Update blocking rules if relevant settings changed
-    if (changes[STORAGE_KEYS.blockedDomains] || 
-        changes[STORAGE_KEYS.allowlistUrls] || 
+    if (changes[STORAGE_KEYS.allowlistUrls] || 
+        changes[STORAGE_KEYS.patternRules] ||
         changes[STORAGE_KEYS.pauseUntil]) {
       updateDynamicRules();
     }
@@ -582,7 +639,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
  */
 chrome.runtime.onInstalled.addListener(() => {
   updateDynamicRules();
-  initializePauseMonitoring();
+  initPauseMonitoring();
 });
 
 /**
@@ -591,7 +648,7 @@ chrome.runtime.onInstalled.addListener(() => {
 if (chrome.runtime.onStartup) {
   chrome.runtime.onStartup.addListener(() => {
     updateDynamicRules();
-    initializePauseMonitoring();
+    initPauseMonitoring();
   });
 }
 
@@ -600,6 +657,10 @@ if (chrome.runtime.onStartup) {
  */
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   switch (msg.type) {
+    case 'ping':
+      // Simple ping/pong to ensure service worker is awake
+      sendResponse({ success: true, message: 'pong' });
+      break;
     case 'blocked':
       if (msg.url) {
         updateBlockStats(msg.url);
@@ -629,10 +690,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       chrome.declarativeNetRequest.getDynamicRules((rules) => {
         console.log('=== CURRENT DYNAMIC RULES DEBUG ===');
         console.log('Total rules:', rules.length);
+        
+        // Check for duplicate IDs
+        const ruleIds = rules.map(r => r.id);
+        const duplicateIds = ruleIds.filter((id, index) => ruleIds.indexOf(id) !== index);
+        
+        if (duplicateIds.length > 0) {
+          console.error('FOUND DUPLICATE RULE IDS:', duplicateIds);
+        }
+        
         rules.forEach(rule => {
-          console.log(`Rule ${rule.id}: ${rule.action.type} (priority: ${rule.priority}) - ${rule.condition.urlFilter}`);
+          console.log(`Rule ${rule.id}: ${rule.action.type} (priority: ${rule.priority}) - ${rule.condition.urlFilter || rule.condition.regexFilter}`);
         });
-        sendResponse({ rules: rules });
+        sendResponse({ rules: rules, duplicateIds: duplicateIds });
       });
       return true;
     case 'refreshRules':
@@ -644,6 +714,31 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     default:
       // Unknown message type - ignore
       break;
+  }
+});
+
+/**
+ * Initialize pause monitoring.
+ */
+function initPauseMonitoring() {
+  console.log('Initializing pause monitoring...');
+  
+  // Check if there's an active pause and set alarm if needed
+  chrome.storage.sync.get([STORAGE_KEYS.pauseUntil], (data) => {
+    const pauseUntil = data[STORAGE_KEYS.pauseUntil] || 0;
+    if (pauseUntil > Date.now()) {
+      setPauseEndAlarm();
+      console.log('Found active pause period - setting alarm for auto-refresh when pause ends');
+    }
+  });
+}
+
+// Listen for alarm events
+chrome.alarms.onAlarm.addListener((alarm) => {
+  console.log('Alarm triggered:', alarm);
+  if (alarm && alarm.name === 'pauseEndAlarm') {
+    console.log('Pause end alarm triggered - calling handlePauseEnd()');
+    handlePauseEnd();
   }
 });
 
@@ -747,5 +842,32 @@ function updatePatternRule(ruleId, updatedRule, sendResponse) {
 function getPatternRules(sendResponse) {
   chrome.storage.sync.get([STORAGE_KEYS.patternRules], (data) => {
     sendResponse({ success: true, rules: data[STORAGE_KEYS.patternRules] || [] });
+  });
+}
+
+/**
+ * Debug function to check current dynamic rules and find conflicts
+ */
+function debugRuleConflicts() {
+  chrome.declarativeNetRequest.getDynamicRules((existingRules) => {
+    console.log('=== CURRENT DYNAMIC RULES DEBUG ===');
+    console.log('Total existing rules:', existingRules.length);
+    
+    const ruleIds = existingRules.map(r => r.id);
+    const duplicateIds = ruleIds.filter((id, index) => ruleIds.indexOf(id) !== index);
+    
+    if (duplicateIds.length > 0) {
+      console.error('FOUND DUPLICATE RULE IDS:', duplicateIds);
+      existingRules.forEach(rule => {
+        if (duplicateIds.includes(rule.id)) {
+          console.error('Duplicate rule:', rule);
+        }
+      });
+    } else {
+      console.log('No duplicate rule IDs found');
+    }
+    
+    console.log('Rule ID range:', Math.min(...ruleIds), 'to', Math.max(...ruleIds));
+    console.log('=== END RULE DEBUG ===');
   });
 }

@@ -6,34 +6,31 @@ import { passwordManager } from './password-manager.js';
 import { handleError, StorageError } from './error-handler.js';
 
 /**
- * Get blocked domains and allowlist URLs from storage
+ * Get allowlist URLs from storage
  * @param {Function} callback - Callback function
  */
 export function getLists(callback) {
-  chrome.storage.sync.get([STORAGE_KEYS.blockedDomains, STORAGE_KEYS.allowlistUrls], (data) => {
+  chrome.storage.sync.get([STORAGE_KEYS.allowlistUrls], (data) => {
     if (chrome.runtime.lastError) {
       const error = new StorageError('getLists', chrome.runtime.lastError.message);
       handleError(error, 'storage.getLists');
-      callback({ blockedDomains: [], allowlistUrls: [] });
+      callback({ allowlistUrls: [] });
       return;
     }
     
     callback({
-      blockedDomains: data[STORAGE_KEYS.blockedDomains] || DEFAULT_SETTINGS.blockedDomains,
       allowlistUrls: data[STORAGE_KEYS.allowlistUrls] || DEFAULT_SETTINGS.allowlistUrls
     });
   });
 }
 
 /**
- * Set blocked domains and allowlist URLs in storage
- * @param {Array} blockedDomains - Array of blocked domains
+ * Set allowlist URLs in storage
  * @param {Array} allowlistUrls - Array of allowlist URLs
  * @param {Function} callback - Callback function
  */
-export function setLists(blockedDomains, allowlistUrls, callback) {
+export function setLists(_, allowlistUrls, callback) {
   chrome.storage.sync.set({
-    [STORAGE_KEYS.blockedDomains]: blockedDomains,
     [STORAGE_KEYS.allowlistUrls]: allowlistUrls
   }, () => {
     if (chrome.runtime.lastError) {

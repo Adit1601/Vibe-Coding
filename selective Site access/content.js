@@ -3,7 +3,6 @@
 // =====================
 // Minimal constants needed for content script
 const STORAGE_KEYS = {
-  blockedDomains: 'blockedDomains',
   allowlistUrls: 'allowlistUrls', 
   patternRules: 'patternRules',
   pauseUntil: 'pauseUntil'
@@ -16,31 +15,106 @@ const CONFIG = {
 
 const YOUTUBE_HOSTNAME = 'youtube.com';
 
+// Global variables for recovery tracking
+let reinitializationAttempts = 0;
+const MAX_REINIT_ATTEMPTS = 3;
+let isInitialized = false;
+
 // =====================
 // Storage Module
 // =====================
+/**
+ * Check if extension context is valid
+ */
+function isExtensionContextValid() {
+  try {
+    return !!(chrome && chrome.runtime && chrome.runtime.id);
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Attempt to recover from extension context invalidation
+ */
+function attemptRecovery() {
+  if (reinitializationAttempts >= MAX_REINIT_ATTEMPTS) {
+    console.log('Content Script: Max recovery attempts reached, giving up');
+    return false;
+  }
+  
+  reinitializationAttempts++;
+  console.log(`Content Script: Attempting recovery (attempt ${reinitializationAttempts}/${MAX_REINIT_ATTEMPTS})`);
+  
+  // Wait a bit and try to reinitialize
+  setTimeout(() => {
+    if (isExtensionContextValid()) {
+      console.log('Content Script: Extension context recovered, reinitializing...');
+      reinitializationAttempts = 0; // Reset counter on successful recovery
+      isInitialized = false; // Reset initialization flag
+      initialize();
+    } else {
+      console.log('Content Script: Context still invalid, will retry on next navigation');
+    }
+  }, 1000);
+  
+  return true;
+}
+
 /**
  * Check if blocking is currently paused.
  * @param {function} callback - Callback with boolean result
  */
 function isPaused(callback) {
-  chrome.storage.sync.get([STORAGE_KEYS.pauseUntil], (data) => {
-    callback((data[STORAGE_KEYS.pauseUntil] || 0) > Date.now());
-  });
+  if (!isExtensionContextValid()) {
+    console.warn('Content Script: Extension context invalidated - skipping pause check');
+    callback(false);
+    return;
+  }
+  
+  try {
+    chrome.storage.sync.get([STORAGE_KEYS.pauseUntil], (data) => {
+      if (chrome.runtime.lastError) {
+        console.warn('Content Script: Storage error in isPaused:', chrome.runtime.lastError);
+        callback(false);
+        return;
+      }
+      callback((data[STORAGE_KEYS.pauseUntil] || 0) > Date.now());
+    });
+  } catch (error) {
+    console.warn('Content Script: Error in isPaused:', error);
+    callback(false);
+  }
 }
 
 /**
- * Get blocklist, allowlist, and pattern rules from storage.
- * @param {function} callback - Callback with {blocked, allowlist, patterns} object
+ * Get allowlist and pattern rules from storage.
+ * @param {function} callback - Callback with {allowlist, patterns} object
  */
 function getLists(callback) {
-  chrome.storage.sync.get([STORAGE_KEYS.blockedDomains, STORAGE_KEYS.allowlistUrls, STORAGE_KEYS.patternRules], (data) => {
-    callback({
-      blocked: data[STORAGE_KEYS.blockedDomains] || [],
-      allowlist: data[STORAGE_KEYS.allowlistUrls] || [],
-      patterns: data[STORAGE_KEYS.patternRules] || []
+  if (!isExtensionContextValid()) {
+    console.warn('Content Script: Extension context invalidated - using empty lists');
+    callback({ allowlist: [], patterns: [] });
+    return;
+  }
+  
+  try {
+    chrome.storage.sync.get([STORAGE_KEYS.allowlistUrls, STORAGE_KEYS.patternRules], (data) => {
+      if (chrome.runtime.lastError) {
+        console.warn('Content Script: Storage error in getLists:', chrome.runtime.lastError);
+        callback({ allowlist: [], patterns: [] });
+        return;
+      }
+      
+      callback({
+        allowlist: data[STORAGE_KEYS.allowlistUrls] || [],
+        patterns: data[STORAGE_KEYS.patternRules] || []
+      });
     });
-  });
+  } catch (error) {
+    console.warn('Content Script: Error in getLists:', error);
+    callback({ allowlist: [], patterns: [] });
+  }
 }
 
 // =====================
@@ -86,27 +160,41 @@ function matchesPattern(url, patternRule) {
 }
 
 /**
- * Check if current URL should be blocked based on settings.
- * @param {Array} blockedDomains - Array of blocked domain names
+ * Check if current URL should be blocked based on pattern rules.
  * @param {Array} allowlistUrls - Array of allowed URLs
  * @param {Array} patternRules - Array of pattern-based blocking rules
  * @returns {boolean} True if URL should be blocked
  */
-function shouldBlockUrl(blockedDomains, allowlistUrls, patternRules) {
-  const currentHostname = location.hostname;
+function shouldBlockUrl(allowlistUrls, patternRules) {
   const currentUrl = location.href;
   
   // Check if URL matches any pattern rule
   const matchesBlockingPattern = patternRules.some(rule => matchesPattern(currentUrl, rule));
   
-  // Check if domain is in blocklist
-  const isBlocked = blockedDomains.some(domain => currentHostname.endsWith(domain));
+  // Check if URL is in allowlist (handle both string and object formats)
+  const isAllowed = allowlistUrls.some(item => {
+    let allowUrl;
+    if (typeof item === 'string') {
+      allowUrl = item;
+    } else if (typeof item === 'object' && item.url) {
+      allowUrl = item.url;
+    } else {
+      return false;
+    }
+    
+    // Use startsWith for broader matching (allows query parameter differences)
+    return currentUrl.startsWith(allowUrl) || allowUrl.startsWith(currentUrl);
+  });
   
-  // Check if URL is in allowlist
-  const isAllowed = allowlistUrls.some(url => currentUrl.startsWith(url));
+  console.log('Content script check:', {
+    currentUrl,
+    matchesBlockingPattern,
+    isAllowed,
+    allowlistUrls: allowlistUrls.map(item => typeof item === 'string' ? item : item.url)
+  });
   
-  // Block if (domain is blocked OR matches pattern) AND URL is not in allowlist
-  return (isBlocked || matchesBlockingPattern) && !isAllowed;
+  // Block if matches pattern AND URL is not in allowlist
+  return matchesBlockingPattern && !isAllowed;
 }
 
 /**
@@ -131,23 +219,64 @@ function redirectToBlockedPage() {
  * More aggressive blocking for sites that don't respond to declarativeNetRequest
  */
 function forceBlock() {
+  // Immediately stop all media
+  const videos = document.querySelectorAll('video');
+  const audios = document.querySelectorAll('audio');
+  
+  videos.forEach(video => {
+    video.pause();
+    video.src = '';
+    video.remove();
+  });
+  
+  audios.forEach(audio => {
+    audio.pause();
+    audio.src = '';
+    audio.remove();
+  });
+  
+  // Stop any ongoing requests
+  if (window.stop) {
+    window.stop();
+  }
+  
   // Hide all content immediately
   if (document.body) {
     document.body.style.display = 'none';
   }
   
-  // Add CSS to hide everything
+  // Add CSS to hide everything and stop media
   const style = document.createElement('style');
   style.textContent = `
-    * { display: none !important; }
+    * { 
+      display: none !important; 
+      visibility: hidden !important;
+    }
+    video, audio, iframe, embed, object { 
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      width: 0 !important;
+      height: 0 !important;
+    }
     html, body { 
       display: block !important; 
+      visibility: visible !important;
       margin: 0 !important; 
       padding: 0 !important; 
       background: #667eea !important;
+      overflow: hidden !important;
     }
   `;
-  document.head.appendChild(style);
+  
+  if (document.head) {
+    document.head.appendChild(style);
+  } else {
+    // If head doesn't exist yet, add style when it's ready
+    document.addEventListener('DOMContentLoaded', () => {
+      document.head.appendChild(style);
+    });
+  }
   
   // Load blocked content
   redirectToBlockedPage();
@@ -160,9 +289,16 @@ function loadBlockedPageContent() {
   fetch(chrome.runtime.getURL(CONFIG.BLOCKED_PAGE_PATH))
     .then(response => response.text())
     .then(html => {
+      // Fix the script src to use the correct extension URL
+      const extensionUrl = chrome.runtime.getURL('blocked.js');
+      const fixedHtml = html.replace(
+        '<script src="blocked.js"></script>',
+        `<script src="${extensionUrl}"></script>`
+      );
+      
       // Replace the entire document with our blocked page
       document.open();
-      document.write(html);
+      document.write(fixedHtml);
       document.close();
       
       // Update the page title
@@ -236,18 +372,54 @@ function showBasicBlockedPage() {
  * This is the main function that determines if the current page should be blocked.
  */
 function checkAndBlock() {
-  isPaused((paused) => {
-    if (paused) {
-      return; // Don't block if paused
+  try {
+    // Check if extension context is still valid
+    if (!isExtensionContextValid()) {
+      console.warn('Content Script: Extension context invalidated - stopping execution');
+      return;
     }
-
-    getLists(({ blocked, allowlist, patterns }) => {
-      if (shouldBlockUrl(blocked, allowlist, patterns)) {
-        // Use more aggressive blocking for better reliability
-        forceBlock();
+    
+    // Don't run on extension pages or already blocked pages
+    if (location.protocol === 'chrome-extension:' || 
+        location.href.includes('blocked.html')) {
+      return;
+    }
+    
+    console.log('Content Script: Checking URL:', location.href);
+    
+    isPaused((paused) => {
+      if (!isExtensionContextValid()) {
+        console.warn('Content Script: Extension context invalidated during pause check');
+        return;
       }
+      
+      if (paused) {
+        console.log('Content Script: Blocking is paused');
+        return; // Don't block if paused
+      }
+
+      getLists(({ allowlist, patterns }) => {
+        if (!isExtensionContextValid()) {
+          console.warn('Content Script: Extension context invalidated during getLists');
+          return;
+        }
+        
+        const shouldBlock = shouldBlockUrl(allowlist, patterns);
+        console.log('Content Script: Should block?', shouldBlock);
+        
+        if (shouldBlock) {
+          console.log('Content Script: Blocking URL:', location.href);
+          // Use more aggressive blocking for better reliability
+          forceBlock();
+        } else {
+          console.log('Content Script: URL allowed:', location.href);
+        }
+      });
     });
-  });
+  } catch (error) {
+    console.warn('Content Script: Error in checkAndBlock:', error);
+    // Don't let errors break the functionality
+  }
 }
 
 // =====================
@@ -259,12 +431,33 @@ function checkAndBlock() {
  */
 function initializeSpaMonitoring() {
   let lastUrl = location.href;
+  console.log('Content Script: Initializing SPA monitoring for:', lastUrl);
 
   // Observe DOM changes to detect URL changes
   const observer = new MutationObserver(() => {
-    if (location.href !== lastUrl) {
-      lastUrl = location.href;
-      checkAndBlock();
+    try {
+      if (!isExtensionContextValid()) {
+        console.warn('Content Script: Extension context invalidated during SPA monitoring');
+        observer.disconnect();
+        attemptRecovery();
+        return;
+      }
+      
+      if (location.href !== lastUrl) {
+        console.log('Content Script: URL changed from', lastUrl, 'to', location.href);
+        lastUrl = location.href;
+        
+        // Small delay to let the page settle
+        setTimeout(() => {
+          if (isExtensionContextValid()) {
+            checkAndBlock();
+          } else {
+            attemptRecovery();
+          }
+        }, 100);
+      }
+    } catch (error) {
+      console.warn('Content Script: Error in SPA monitoring:', error);
     }
   });
 
@@ -273,6 +466,58 @@ function initializeSpaMonitoring() {
     subtree: true, 
     childList: true 
   });
+
+  // Also monitor popstate events (back/forward navigation)
+  window.addEventListener('popstate', () => {
+    if (isExtensionContextValid()) {
+      console.log('Content Script: Popstate event detected');
+      setTimeout(() => {
+        if (isExtensionContextValid()) {
+          checkAndBlock();
+        } else {
+          attemptRecovery();
+        }
+      }, 100);
+    } else {
+      attemptRecovery();
+    }
+  });
+
+  // Monitor pushstate/replacestate (programmatic navigation)
+  const originalPushState = history.pushState;
+  const originalReplaceState = history.replaceState;
+
+  history.pushState = function(...args) {
+    originalPushState.apply(this, args);
+    if (isExtensionContextValid()) {
+      console.log('Content Script: PushState detected');
+      setTimeout(() => {
+        if (isExtensionContextValid()) {
+          checkAndBlock();
+        } else {
+          attemptRecovery();
+        }
+      }, 100);
+    } else {
+      attemptRecovery();
+    }
+  };
+
+  history.replaceState = function(...args) {
+    originalReplaceState.apply(this, args);
+    if (isExtensionContextValid()) {
+      console.log('Content Script: ReplaceState detected');
+      setTimeout(() => {
+        if (isExtensionContextValid()) {
+          checkAndBlock();
+        } else {
+          attemptRecovery();
+        }
+      }, 100);
+    } else {
+      attemptRecovery();
+    }
+  };
 }
 
 // =====================
@@ -283,12 +528,35 @@ function initializeSpaMonitoring() {
  * Runs on all sites to check for blocking.
  */
 function initialize() {
+  if (isInitialized) {
+    console.log('Content Script: Already initialized, skipping...');
+    return;
+  }
+  
+  if (!isExtensionContextValid()) {
+    console.warn('Content Script: Extension context invalid during initialization');
+    attemptRecovery();
+    return;
+  }
+  
+  console.log('Content Script: Initializing...');
+  isInitialized = true;
+  
   // Check on initial load for all sites
   checkAndBlock();
   
   // Set up SPA navigation monitoring for all sites
   // This is especially important for YouTube, but useful for other SPAs too
   initializeSpaMonitoring();
+  
+  // Monitor page visibility changes to detect potential extension reloads
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && !isExtensionContextValid()) {
+      console.log('Content Script: Page became visible but extension context invalid, attempting recovery');
+      isInitialized = false; // Reset flag to allow reinitialization
+      attemptRecovery();
+    }
+  });
 }
 
 // Start the content script
