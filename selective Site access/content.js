@@ -13,8 +13,6 @@ const CONFIG = {
   BLOCK_DELAY_MS: 100
 };
 
-const YOUTUBE_HOSTNAME = 'youtube.com';
-
 // Global variables for recovery tracking
 let reinitializationAttempts = 0;
 const MAX_REINIT_ATTEMPTS = 3;

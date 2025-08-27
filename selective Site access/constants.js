@@ -53,16 +53,8 @@ export const CONFIG = {
   MAX_PATTERN_LENGTH: 1000,
   MAX_REGEX_EXECUTION_TIME: 1000,
   
-  // Storage limits
-  MAX_ALLOWLIST_URLS: 500,
-  MAX_PATTERN_RULES: 500,
-  
   // File paths
   BLOCKED_PAGE_PATH: '/blocked.html',
-  
-  // Default values
-  DEFAULT_PAUSE_DURATION: 30, // minutes
-  STORAGE_DEBOUNCE_DELAY: 500, // ms
 };
 
 /**
@@ -78,28 +70,6 @@ export const ERROR_CODES = {
   AUTHENTICATION_ERROR: 'AUTHENTICATION_ERROR',
   REGEX_ERROR: 'REGEX_ERROR',
   PERMISSION_ERROR: 'PERMISSION_ERROR',
-};
-
-/**
- * @constant {Object} PATTERN_TYPES
- * @description Valid pattern types for pattern-based blocking.
- */
-export const PATTERN_TYPES = {
-  PATH: 'path',
-  REGEX: 'regex',
-  URL: 'url',
-  DOMAIN: 'domain',
-};
-
-/**
- * @constant {Object} VALIDATION_REGEX
- * @description Regular expressions for input validation.
- */
-export const VALIDATION_REGEX = {
-  DOMAIN: /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-  URL: /^https?:\/\/.+/,
-  // Safe regex patterns (no dangerous constructs)
-  SAFE_REGEX: /^[^(){}[\]\\^$+*?|]*$/,
 };
 
 /**

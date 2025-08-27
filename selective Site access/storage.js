@@ -29,7 +29,7 @@ export function getLists(callback) {
  * @param {Array} allowlistUrls - Array of allowlist URLs
  * @param {Function} callback - Callback function
  */
-export function setLists(_, allowlistUrls, callback) {
+export function setLists(allowlistUrls, callback) {
   chrome.storage.sync.set({
     [STORAGE_KEYS.allowlistUrls]: allowlistUrls
   }, () => {

@@ -3,8 +3,6 @@ import * as storage from './storage.js';
 import * as ui from './ui.js';
 import * as auth from './auth.js';
 import { passwordManager } from './password-manager.js';
-import { handleError, DomainValidationError, URLValidationError } from './error-handler.js';
-import { VALIDATION_REGEX, CONFIG } from './constants.js';
 
 // Utility functions
 function isValidDomain(domain) {
@@ -18,6 +16,39 @@ function getTimeMs(value, unit) {
   return value * 60 * 1000;
 }
 
+// Generate a smart default name based on the URL
+function generateDefaultName(url) {
+  try {
+    const urlObj = new URL(url);
+    const domain = urlObj.hostname.replace(/^www\./, '');
+    
+    // For YouTube, try to get a more specific name
+    if (domain.includes('youtube.com')) {
+      if (url.includes('/watch?v=')) {
+        return `YouTube Video`;
+      } else if (url.includes('/playlist')) {
+        return `YouTube Playlist`;
+      } else if (url.includes('/channel/') || url.includes('/c/')) {
+        return `YouTube Channel`;
+      } else {
+        return `YouTube`;
+      }
+    }
+    
+    // For other common sites
+    if (domain.includes('spotify.com')) return 'Spotify';
+    if (domain.includes('soundcloud.com')) return 'SoundCloud';
+    if (domain.includes('netflix.com')) return 'Netflix';
+    if (domain.includes('github.com')) return 'GitHub';
+    if (domain.includes('stackoverflow.com')) return 'Stack Overflow';
+    
+    // Default to domain name
+    return domain.charAt(0).toUpperCase() + domain.slice(1);
+  } catch (e) {
+    return 'Allowlisted Site';
+  }
+}
+
 // DOM Elements
 const el = {
   pauseValue: document.getElementById('pause-value'),
@@ -25,9 +56,6 @@ const el = {
   pauseBtn: document.getElementById('pause-btn'),
   unlockPassword: document.getElementById('unlock-password'),
   togglePasswordBtn: document.getElementById('toggle-password-visibility'),
-  eyeIcon: document.getElementById('eye-icon'),
-  blockDomainInput: document.getElementById('block-domain-input'),
-  blockDomainError: document.getElementById('block-domain-error'),
   allowlistUrlInput: document.getElementById('allowlist-url-input'),
   allowlistUrlError: document.getElementById('allowlist-url-error'),
   unlockPasswordError: document.getElementById('unlock-error'),
@@ -120,39 +148,6 @@ allowlistUrlForm.addEventListener('submit', (e) => {
     });
     
     if (!urlExists) {
-      // Generate a smart default name for manual entries too
-      function generateDefaultName(url) {
-        try {
-          const urlObj = new URL(url);
-          const domain = urlObj.hostname.replace(/^www\./, '');
-          
-          // For YouTube, try to get a more specific name
-          if (domain.includes('youtube.com')) {
-            if (url.includes('/watch?v=')) {
-              return `YouTube Video`;
-            } else if (url.includes('/playlist')) {
-              return `YouTube Playlist`;
-            } else if (url.includes('/channel/') || url.includes('/c/')) {
-              return `YouTube Channel`;
-            } else {
-              return `YouTube`;
-            }
-          }
-          
-          // For other common sites
-          if (domain.includes('spotify.com')) return 'Spotify';
-          if (domain.includes('soundcloud.com')) return 'SoundCloud';
-          if (domain.includes('netflix.com')) return 'Netflix';
-          if (domain.includes('github.com')) return 'GitHub';
-          if (domain.includes('stackoverflow.com')) return 'Stack Overflow';
-          
-          // Default to domain name
-          return domain.charAt(0).toUpperCase() + domain.slice(1);
-        } catch (e) {
-          return 'Allowlisted Site';
-        }
-      }
-      
       const defaultName = generateDefaultName(url);
       
       // Store as object with smart default name
@@ -161,7 +156,7 @@ allowlistUrlForm.addEventListener('submit', (e) => {
         url: url,
         dateAdded: new Date().toISOString()
       });
-      storage.setLists([], allowlistUrls, () => {
+      storage.setLists(allowlistUrls, () => {
         ui.showToast('Allowlist URL added!');
         updateLists();
       });
@@ -431,39 +426,6 @@ el.quickAllowlistBtn?.addEventListener('click', () => {
     return;
   }
   
-  // Generate a smart default name based on the URL
-  function generateDefaultName(url) {
-    try {
-      const urlObj = new URL(url);
-      const domain = urlObj.hostname.replace(/^www\./, '');
-      
-      // For YouTube, try to get a more specific name
-      if (domain.includes('youtube.com')) {
-        if (url.includes('/watch?v=')) {
-          return `YouTube Video`;
-        } else if (url.includes('/playlist')) {
-          return `YouTube Playlist`;
-        } else if (url.includes('/channel/') || url.includes('/c/')) {
-          return `YouTube Channel`;
-        } else {
-          return `YouTube`;
-        }
-      }
-      
-      // For other common sites
-      if (domain.includes('spotify.com')) return 'Spotify';
-      if (domain.includes('soundcloud.com')) return 'SoundCloud';
-      if (domain.includes('netflix.com')) return 'Netflix';
-      if (domain.includes('github.com')) return 'GitHub';
-      if (domain.includes('stackoverflow.com')) return 'Stack Overflow';
-      
-      // Default to domain name
-      return domain.charAt(0).toUpperCase() + domain.slice(1);
-    } catch (e) {
-      return 'Allowlisted Site';
-    }
-  }
-  
   // Add the current URL to allowlist with smart default name
   storage.getLists(({ allowlistUrls }) => {
     // Check if URL already exists (support both old string format and new object format)
@@ -489,7 +451,7 @@ el.quickAllowlistBtn?.addEventListener('click', () => {
       dateAdded: new Date().toISOString()
     });
     
-    storage.setLists([], allowlistUrls, () => {
+    storage.setLists(allowlistUrls, () => {
       ui.showToast(`✅ Added "${defaultName}" to allowlist!`);
       updateLists();
       console.log(`Added to allowlist: ${defaultName} (${currentSiteUrl})`);
@@ -836,7 +798,7 @@ function createRuleElement(rule) {
 function removeAllowlistUrl(idx) {
   storage.getLists(({ allowlistUrls }) => {
     const removed = allowlistUrls.splice(idx, 1);
-    storage.setLists([], allowlistUrls, () => {
+    storage.setLists(allowlistUrls, () => {
       const allowlistList = document.getElementById('allowlist-urls-list');
       const li = allowlistList.children[idx];
       if (li) {
@@ -866,7 +828,7 @@ function editAllowlistName(idx, newName) {
     // Only edit if it's an object format entry
     if (typeof item === 'object') {
       item.name = newName;
-      storage.setLists([], allowlistUrls, () => {
+      storage.setLists(allowlistUrls, () => {
         ui.showToast(`Renamed to "${newName}"`);
         updateLists();
         console.log(`Renamed allowlist entry to: ${newName}`);
@@ -907,7 +869,7 @@ document.getElementById('import-file').addEventListener('change', (e) => {
         ui.showToast('Invalid backup file.', true);
         return;
       }
-      storage.setLists([], data.allowlistUrls, () => {
+      storage.setLists(data.allowlistUrls, () => {
         ui.showToast('Lists imported!');
         updateLists();
       });

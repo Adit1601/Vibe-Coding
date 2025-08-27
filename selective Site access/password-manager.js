@@ -192,16 +192,6 @@ export class PasswordManager {
   }
   
   /**
-   * Verify password
-   * @param {string} inputPassword - Password to verify
-   * @returns {Promise<boolean>} True if password matches
-   */
-  async verifyPassword(inputPassword) {
-    const currentPassword = await this.getPassword();
-    return inputPassword === currentPassword;
-  }
-  
-  /**
    * Get password strength validation
    * @param {string} password - Password to check
    * @returns {Object} Validation result

@@ -113,25 +113,8 @@ let ruleUpdateInProgress = false;
 let pendingRuleUpdateCallbacks = [];
 
 /**
- * Get a unique rule ID that doesn't conflict with existing rules
- * @returns {Promise<number>} A unique rule ID
- */
-function getUniqueRuleId() {
-  return new Promise((resolve) => {
-    chrome.declarativeNetRequest.getDynamicRules((existingRules) => {
-      const existingIds = new Set(existingRules.map(rule => rule.id));
-      
-      // Find the next available ID
-      while (existingIds.has(nextRuleId)) {
-        nextRuleId++;
-      }
-      
-      const uniqueId = nextRuleId;
-      nextRuleId++; // Increment for next use
-      resolve(uniqueId);
-    });
-  });
-}
+ * Store pattern rules in chrome storage
+ * @param {Array} rules - Array of pattern rules to store
 
 /**
  * Generate multiple unique rule IDs
@@ -562,66 +545,6 @@ function handlePauseEnd() {
 }
 
 /**
- * Extract domain from URL.
- * @param {string} url - The URL to extract domain from
- * @returns {string} The domain name
- */
-function extractDomain(url) {
-  try {
-    const urlObj = new URL(url);
-    return urlObj.hostname.replace(/^www\./, '');
-  } catch (e) {
-    return '';
-  }
-}
-
-/**
- * Check if a URL matches a pattern rule.
- * @param {string} url - URL to check
- * @param {Object} patternRule - Pattern rule object
- * @returns {boolean} True if URL matches the pattern
- */
-function matchesPatternRule(url, patternRule) {
-  if (!patternRule.enabled) return false;
-  
-  switch (patternRule.type) {
-    case 'path':
-      // Convert path pattern to regex
-      // Example: */shorts/* becomes .*/shorts/.*
-      const pathRegex = patternRule.pattern
-        .replace(/\*/g, '.*')
-        .replace(/\//g, '\\/');
-      return new RegExp(pathRegex, 'i').test(url);
-      
-    case 'regex':
-      try {
-        return safeRegexTest(patternRule.pattern, url);
-      } catch (e) {
-        console.warn('Invalid regex pattern:', patternRule.pattern);
-        return false;
-      }
-      
-    case 'url':
-      return url.startsWith(patternRule.pattern);
-      
-    case 'domain':
-      try {
-        const hostname = new URL(url).hostname;
-        const pattern = patternRule.pattern;
-        // Exact match or subdomain match (e.g., pattern 'google.com' matches 'google.com' and 'www.google.com')
-        return hostname === pattern || hostname.endsWith('.' + pattern);
-      } catch (e) {
-        // Invalid URL cannot match a domain.
-        return false;
-      }
-      
-    default:
-      console.warn('Unknown pattern type:', patternRule.type);
-      return false;
-  }
-}
-
-/**
  * Refresh tabs that should be blocked after pause ends.
  * Instead of re-implementing blocking logic, this uses a more comprehensive approach
  * that trusts the declarativeNetRequest rules as the source of truth.
@@ -1002,29 +925,6 @@ function getPatternRules(sendResponse) {
   });
 }
 
-/**
- * Debug function to check current dynamic rules and find conflicts
- */
-function debugRuleConflicts() {
-  chrome.declarativeNetRequest.getDynamicRules((existingRules) => {
-    console.log('=== CURRENT DYNAMIC RULES DEBUG ===');
-    console.log('Total existing rules:', existingRules.length);
-    
-    const ruleIds = existingRules.map(r => r.id);
-    const duplicateIds = ruleIds.filter((id, index) => ruleIds.indexOf(id) !== index);
-    
-    if (duplicateIds.length > 0) {
-      console.error('FOUND DUPLICATE RULE IDS:', duplicateIds);
-      existingRules.forEach(rule => {
-        if (duplicateIds.includes(rule.id)) {
-          console.error('Duplicate rule:', rule);
-        }
-      });
-    } else {
-      console.log('No duplicate rule IDs found');
-    }
-    
-    console.log('Rule ID range:', Math.min(...ruleIds), 'to', Math.max(...ruleIds));
-    console.log('=== END RULE DEBUG ===');
-  });
-}
+// =====================
+// Export for testing
+// =====================
