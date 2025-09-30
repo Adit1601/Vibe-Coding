@@ -1115,7 +1115,7 @@ document.getElementById('cancel-change-password').addEventListener('click', () =
 });
 
 // Forgot Password functionality
-document.getElementById('forgot-password-btn').addEventListener('click', () => {
+document.getElementById('forgot-password-btn')?.addEventListener('click', () => {
   document.getElementById('unlock-form').style.display = 'none';
   document.getElementById('forgot-password-form').style.display = 'block';
   document.getElementById('unlock-error').textContent = '';
