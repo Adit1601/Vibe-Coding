@@ -8,9 +8,16 @@ import { passwordManager } from './password-manager.js';
 function isValidDomain(domain) {
   return /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(domain);
 }
+
 function isValidUrl(url) {
-  try { new URL(url); return true; } catch { return false; }
+  try { 
+    new URL(url); 
+    return true; 
+  } catch { 
+    return false; 
+  }
 }
+
 function getTimeMs(value, unit) {
   if (unit === 'hour') return value * 60 * 60 * 1000;
   return value * 60 * 1000;
@@ -25,13 +32,13 @@ function generateDefaultName(url) {
     // For YouTube, try to get a more specific name
     if (domain.includes('youtube.com')) {
       if (url.includes('/watch?v=')) {
-        return `YouTube Video`;
+        return 'YouTube Video';
       } else if (url.includes('/playlist')) {
-        return `YouTube Playlist`;
+        return 'YouTube Playlist';
       } else if (url.includes('/channel/') || url.includes('/c/')) {
-        return `YouTube Channel`;
+        return 'YouTube Channel';
       } else {
-        return `YouTube`;
+        return 'YouTube';
       }
     }
     
@@ -688,6 +695,9 @@ function updateUnifiedBlockingRules() {
         const ruleElement = createRuleElement(rule);
         rulesList.appendChild(ruleElement);
       });
+      
+      // Update blocked sites list
+      updateBlockedSitesList(patternRules);
     } else {
       console.error('Failed to get pattern rules:', response);
     }
@@ -839,18 +849,176 @@ function editAllowlistName(idx, newName) {
   });
 }
 
+// Update blocked sites list
+function updateBlockedSitesList(patternRules) {
+  const blockedSitesList = document.getElementById('blocked-sites-list');
+  if (!blockedSitesList) return;
+  
+  if (patternRules.length === 0) {
+    blockedSitesList.innerHTML = '<div style="font-style: italic; opacity: 0.7; padding: 20px; text-align: center;">No sites are currently blocked.</div>';
+    return;
+  }
+  
+  // Group rules by domain for better organization
+  const domainGroups = {};
+  
+  patternRules.forEach(rule => {
+    if (!rule.enabled) return;
+    
+    let domain = '';
+    let displayName = '';
+    
+    switch (rule.type) {
+      case 'domain':
+        domain = rule.pattern;
+        displayName = rule.pattern;
+        break;
+      case 'path':
+        // Extract domain from path patterns
+        if (rule.pattern.includes('youtube.com')) {
+          domain = 'youtube.com';
+          displayName = 'YouTube (Path: ' + rule.pattern + ')';
+        } else if (rule.pattern.includes('facebook.com')) {
+          domain = 'facebook.com';
+          displayName = 'Facebook (Path: ' + rule.pattern + ')';
+        } else {
+          domain = 'path-pattern';
+          displayName = 'Path Pattern: ' + rule.pattern;
+        }
+        break;
+      case 'url':
+        try {
+          const urlObj = new URL(rule.pattern);
+          domain = urlObj.hostname;
+          displayName = domain + ' (URL: ' + rule.pattern + ')';
+        } catch (e) {
+          domain = 'url-pattern';
+          displayName = 'URL Pattern: ' + rule.pattern;
+        }
+        break;
+      case 'regex':
+        domain = 'regex-pattern';
+        displayName = 'Regex Pattern: ' + rule.pattern;
+        break;
+    }
+    
+    if (!domainGroups[domain]) {
+      domainGroups[domain] = [];
+    }
+    domainGroups[domain].push({ rule, displayName });
+  });
+  
+  // Create blocked sites list
+  blockedSitesList.innerHTML = '';
+  
+  Object.entries(domainGroups).forEach(([domain, rules]) => {
+    const domainDiv = document.createElement('div');
+    domainDiv.style.marginBottom = '15px';
+    domainDiv.style.padding = '12px';
+    domainDiv.style.background = 'rgba(231, 76, 60, 0.1)';
+    domainDiv.style.border = '1px solid rgba(231, 76, 60, 0.3)';
+    domainDiv.style.borderRadius = '8px';
+    
+    const domainHeader = document.createElement('div');
+    domainHeader.style.display = 'flex';
+    domainHeader.style.justifyContent = 'space-between';
+    domainHeader.style.alignItems = 'center';
+    domainHeader.style.marginBottom = '8px';
+    
+    const domainTitle = document.createElement('strong');
+    domainTitle.style.color = '#e74c3c';
+    domainTitle.textContent = domain === 'path-pattern' ? 'Path Patterns' : 
+                             domain === 'url-pattern' ? 'URL Patterns' : 
+                             domain === 'regex-pattern' ? 'Regex Patterns' : domain;
+    
+    const visitBtn = document.createElement('button');
+    visitBtn.textContent = 'Visit';
+    visitBtn.style.background = 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)';
+    visitBtn.style.color = 'white';
+    visitBtn.style.border = 'none';
+    visitBtn.style.borderRadius = '6px';
+    visitBtn.style.padding = '6px 12px';
+    visitBtn.style.fontSize = '0.8em';
+    visitBtn.style.cursor = 'pointer';
+    visitBtn.style.transition = 'all 0.2s ease';
+    
+    visitBtn.onmouseenter = () => {
+      visitBtn.style.background = 'linear-gradient(135deg, #2980b9 0%, #1f618d 100%)';
+      visitBtn.style.transform = 'scale(1.05)';
+    };
+    visitBtn.onmouseleave = () => {
+      visitBtn.style.background = 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)';
+      visitBtn.style.transform = 'scale(1)';
+    };
+    
+    // Handle visit button click based on domain type
+    visitBtn.onclick = () => {
+      if (domain === 'youtube.com') {
+        // For YouTube, open the main site
+        chrome.tabs.create({ url: 'https://www.youtube.com' });
+      } else if (domain === 'facebook.com') {
+        // For Facebook, open the main site
+        chrome.tabs.create({ url: 'https://www.facebook.com' });
+      } else if (domain.startsWith('http')) {
+        // For URL patterns, open the URL
+        chrome.tabs.create({ url: domain });
+      } else if (domain.includes('.com') || domain.includes('.org') || domain.includes('.net')) {
+        // For domain patterns, open the domain
+        chrome.tabs.create({ url: 'https://' + domain });
+      } else {
+        // For other patterns, show a message
+        ui.showToast('Cannot directly visit this type of pattern. Modify your rules to allow access.', true);
+      }
+    };
+    
+    domainHeader.appendChild(domainTitle);
+    domainHeader.appendChild(visitBtn);
+    domainDiv.appendChild(domainHeader);
+    
+    // Add rule descriptions
+    rules.forEach(({ rule, displayName }) => {
+      const ruleDesc = document.createElement('div');
+      ruleDesc.style.fontSize = '0.85em';
+      ruleDesc.style.opacity = '0.8';
+      ruleDesc.style.marginBottom = '4px';
+      ruleDesc.textContent = '• ' + displayName;
+      domainDiv.appendChild(ruleDesc);
+    });
+    
+    blockedSitesList.appendChild(domainDiv);
+  });
+}
+
+// Enhanced Export/Import functionality
 document.getElementById('export-btn').addEventListener('click', () => {
-  storage.getLists((data) => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  // Export both allowlist URLs and pattern rules
+  Promise.all([
+    new Promise((resolve) => {
+      storage.getLists((data) => resolve(data));
+    }),
+    new Promise((resolve) => {
+      chrome.runtime.sendMessage({ type: 'getPatternRules' }, (response) => {
+        resolve(response && response.success ? response.rules : []);
+      });
+    })
+  ]).then(([allowlistData, patternRules]) => {
+    const exportData = {
+      allowlistUrls: allowlistData.allowlistUrls || [],
+      patternRules: patternRules || [],
+      exportDate: new Date().toISOString(),
+      version: '1.0'
+    };
+    
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'site-access-backup.json';
+    a.download = 'selective-site-access-backup.json';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    ui.showToast('Exported lists!');
+    ui.showToast('Settings exported successfully!');
   });
 });
 
@@ -861,20 +1029,54 @@ document.getElementById('import-btn').addEventListener('click', () => {
 document.getElementById('import-file').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
+  
   const reader = new FileReader();
   reader.onload = function(evt) {
     try {
       const data = JSON.parse(evt.target.result);
-      if (!Array.isArray(data.allowlistUrls)) {
-        ui.showToast('Invalid backup file.', true);
+      
+      // Validate import data structure
+      if (!data.allowlistUrls || !Array.isArray(data.allowlistUrls)) {
+        ui.showToast('Invalid backup file: missing allowlist data', true);
         return;
       }
+      
+      // Import allowlist URLs
       storage.setLists(data.allowlistUrls, () => {
-        ui.showToast('Lists imported!');
-        updateLists();
+        // Import pattern rules if they exist
+        if (data.patternRules && Array.isArray(data.patternRules)) {
+          // Clear existing pattern rules first
+          chrome.runtime.sendMessage({ type: 'getPatternRules' }, (response) => {
+            if (response && response.success) {
+              const existingRules = response.rules || [];
+              // Remove existing rules
+              existingRules.forEach(rule => {
+                chrome.runtime.sendMessage({ type: 'removePatternRule', ruleId: rule.id });
+              });
+              
+              // Add imported rules
+              let importedCount = 0;
+              data.patternRules.forEach(rule => {
+                chrome.runtime.sendMessage({ type: 'addPatternRule', rule }, (response) => {
+                  if (response && response.success) {
+                    importedCount++;
+                    if (importedCount === data.patternRules.length) {
+                      ui.showToast(`Import complete! ${data.allowlistUrls.length} allowlist entries and ${data.patternRules.length} pattern rules imported.`);
+                      updateLists();
+                    }
+                  }
+                });
+              });
+            }
+          });
+        } else {
+          ui.showToast(`Import complete! ${data.allowlistUrls.length} allowlist entries imported.`);
+          updateLists();
+        }
       });
-    } catch {
-      ui.showToast('Invalid JSON file.', true);
+    } catch (error) {
+      ui.showToast('Invalid JSON file or corrupted backup data', true);
+      console.error('Import error:', error);
     }
   };
   reader.readAsText(file);

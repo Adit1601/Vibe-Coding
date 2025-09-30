@@ -13,17 +13,17 @@ export const STORAGE_KEYS = {
   // Core blocking functionality
   allowlistUrls: 'allowlistUrls',
   patternRules: 'patternRules',
-  
+
   // Authentication and security
   locked: 'locked',
   password: 'password',
   passwordSet: 'passwordSet',
   passwordDisplayed: 'passwordDisplayed',
-  
+
   // Pause and timer functionality
   pauseUntil: 'pauseUntil',
   pauseStart: 'pauseStart',
-  
+
   // Analytics and tracking
   blockCount: 'blockCount',
   lastBlockedUrl: 'lastBlockedUrl'
@@ -37,7 +37,7 @@ export const STORAGE_KEYS = {
 export const RULE_PRIORITIES = {
   ALLOW: 100,    // Much higher priority - allowlist URLs override everything
   PATTERN: 50,   // Medium priority - pattern-based blocking rules
-  BLOCK: 10,     // Lowest priority - simple domain blocks
+  BLOCK: 10      // Lowest priority - simple domain blocks
 };
 
 /**
@@ -48,13 +48,13 @@ export const CONFIG = {
   // UI and UX settings
   BLOCK_DELAY_MS: 100,
   PASSWORD_MIN_LENGTH: 6,
-  
+
   // Security limits
   MAX_PATTERN_LENGTH: 1000,
   MAX_REGEX_EXECUTION_TIME: 1000,
-  
+
   // File paths
-  BLOCKED_PAGE_PATH: '/blocked.html',
+  BLOCKED_PAGE_PATH: '/blocked.html'
 };
 
 /**
@@ -69,7 +69,7 @@ export const ERROR_CODES = {
   STORAGE_ERROR: 'STORAGE_ERROR',
   AUTHENTICATION_ERROR: 'AUTHENTICATION_ERROR',
   REGEX_ERROR: 'REGEX_ERROR',
-  PERMISSION_ERROR: 'PERMISSION_ERROR',
+  PERMISSION_ERROR: 'PERMISSION_ERROR'
 };
 
 /**
@@ -77,13 +77,13 @@ export const ERROR_CODES = {
  * @description Regex patterns that could cause ReDoS attacks.
  */
 export const DANGEROUS_REGEX_PATTERNS = [
-  /\(\?\=/,     // Positive lookahead
-  /\(\?\!/,     // Negative lookahead
-  /\(\?\<=/,    // Positive lookbehind
-  /\(\?\<!/,    // Negative lookbehind
+  /\(\?=/,     // Positive lookahead
+  /\(\?!/,     // Negative lookahead
+  /\(\?<=/,    // Positive lookbehind
+  /\(\?</,     // Negative lookbehind
   /\{[0-9]+,\}/, // Open-ended quantifiers
   /\+\+/,       // Nested quantifiers
-  /\*\*/,       // Nested quantifiers
+  /\*\*/        // Nested quantifiers
 ];
 
 /**
@@ -96,5 +96,5 @@ export const DEFAULT_SETTINGS = {
   pauseStart: 0,
   blockCount: 0,
   allowlistUrls: [],
-  patternRules: [],
+  patternRules: []
 };

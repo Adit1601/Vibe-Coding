@@ -718,11 +718,25 @@
         <div class="input-error" id="allowlist-url-error"></div>
         <ul id="allowlist-urls-list"></ul>
       </div>
+      
+      <!-- Blocked Sites Section -->
+      <div class="card">
+        <h2>Blocked Sites</h2>
+        <p style="font-size: 0.9em; opacity: 0.8; margin-bottom: 15px;">
+          Sites currently blocked by your rules. Click "Visit" to temporarily allow access.
+        </p>
+        <div id="blocked-sites-list">
+          <div style="font-style: italic; opacity: 0.7; padding: 20px; text-align: center;">
+            Loading blocked sites...
+          </div>
+        </div>
+      </div>
+      
       <div class="card" style="text-align:center;">
         <h2 style="margin-top:0;">Backup & Restore</h2>
-        <button id="export-btn" style="margin-right:10px;">Export Lists</button>
+        <button id="export-btn" style="margin-right:10px;">Export Settings</button>
         <input type="file" id="import-file" accept="application/json" style="display:none;" />
-        <button id="import-btn">Import Lists</button>
+        <button id="import-btn">Import Settings</button>
       </div>
     </div>
     <div id="toast-container"></div>
