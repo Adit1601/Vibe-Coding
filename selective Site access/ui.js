@@ -2,6 +2,15 @@
 // UI update and utility functions for Selective Site Access extension
 
 // Toast notification
+/**
+* Displays a toast message on the screen with optional error styling.
+* @example
+* showToast('Operation successful', false)
+* Displays a success message on the toast.
+* @param {string} message - The message to be displayed on the toast.
+* @param {boolean} [isError=false] - Optional flag to indicate if the toast is an error message.
+* @returns {void} No return value. The function appends a toast element to the DOM.
+**/
 export function showToast(message, isError = false) {
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
@@ -25,6 +34,13 @@ export function showToast(message, isError = false) {
 }
 
 // Set dark mode styles
+/**
+* Sets the theme of the UI to dark mode by updating CSS variables and styles.
+* @example
+* setDarkMode();
+* // Changes the background and text colors to a dark theme.
+* @returns {void} Does not return a value.
+**/
 export function setDarkMode() {
   const root = document.documentElement;
   root.style.setProperty('--bg', '#181a1b');
@@ -60,6 +76,15 @@ export function bindTimeInputEvents(valueInput, unitInput, onChange) {
 
 // Show and update the pause countdown and progress bar
 let pauseInterval = null;
+/**
+ * Displays a countdown for when the blocking pause will end.
+ * @example
+ * showPauseCountdown(getPauseUntil, getPauseStart)
+ * // Calls functions to display remaining time until resume, manage UI elements and progress bar.
+ * @param {function} getPauseUntil - A function that retrieves the timestamp indicating when the pause ends.
+ * @param {function} getPauseStart - A function that retrieves the timestamp indicating when the pause started.
+ * @returns {void} Does not return a value, but updates the UI with remaining pause time and progress.
+ */
 export function showPauseCountdown(getPauseUntil, getPauseStart) {
   getPauseUntil((pauseUntil) => {
     const now = Date.now();

@@ -199,6 +199,15 @@ export function createSafeRegexTester(pattern, flags = 'i') {
   
   const regex = new RegExp(pattern, flags);
   
+  /**
+   * Executes a regex test on the provided text with a timeout to prevent excessive execution time.
+   * @example
+   * testText('example text', 1000)
+   * Promise resolving to true or false
+   * @param {string} text - The text to be tested against the regex pattern.
+   * @param {number} [timeoutMs=CONFIG.MAX_REGEX_EXECUTION_TIME] - The maximum execution time in milliseconds before timing out.
+   * @returns {Promise<boolean>} A promise that resolves to the result of the regex test or rejects with a RegexSecurityError on timeout or execution error.
+   **/
   return async function testText(text, timeoutMs = CONFIG.MAX_REGEX_EXECUTION_TIME) {
     return new Promise((resolve, reject) => {
       const startTime = Date.now();

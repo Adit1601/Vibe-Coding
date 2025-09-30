@@ -21,6 +21,14 @@ export function showMainUI() {
 }
 
 // Check and show security warning for default password
+/**
+* Displays a security warning if the default password is being used.
+* @example
+* checkAndShowSecurityWarning(isDefaultPasswordFunc)
+* // Displays or hides the security warning based on the password status.
+* @param {function} isDefaultPasswordFunc - Function that checks if the default password is being used, executes a callback with a boolean result.
+* @returns {void} No return value.
+**/
 export function checkAndShowSecurityWarning(isDefaultPasswordFunc) {
   const securityWarning = document.getElementById('security-warning');
   if (securityWarning && isDefaultPasswordFunc) {
@@ -50,6 +58,14 @@ export function unlockExtension(setLocked) {
 }
 
 // Password strength checker
+/**
+* Evaluates the strength of a given password and provides feedback.
+* @example
+* checkPasswordStrength('aB1#defg')
+* // { strength: 'strong', percentage: 100, feedback: 'Strong - Excellent password' }
+* @param {string} password - The password to be evaluated.
+* @returns {Object} An object containing the strength, percentage, and feedback for the password.
+**/
 function checkPasswordStrength(password) {
   let score = 0;
   let feedback = '';
@@ -73,6 +89,14 @@ function checkPasswordStrength(password) {
 }
 
 // Update password strength indicator
+/**
+* Updates the password strength UI elements based on user input.
+* @example
+* updatePasswordStrength()
+* // Attaches event listener to update UI for password strength feedback
+* @param {void} - No arguments are taken by this function.
+* @returns {void} Does not return a value.
+**/
 function updatePasswordStrength() {
   const passwordInput = document.getElementById('new-password');
   const strengthBar = document.getElementById('password-strength-bar');
@@ -116,6 +140,15 @@ function getStrengthColor(strength) {
 }
 
 // Password change logic
+/**
+ * Handles the password change process, validating inputs and updating the password.
+ * @example
+ * handlePasswordChange(getPasswordCallback, setPasswordCallback)
+ * <button onclick="handlePasswordChange(getPasswordCallback, setPasswordCallback)">Change Password</button>
+ * @param {Function} getPassword - A callback function to retrieve the current password for verification.
+ * @param {Function} setPassword - A callback function to update the password after successful validation.
+ * @returns {void} This function does not return a value; it manipulates the DOM to provide feedback to the user.
+ */
 export function handlePasswordChange(getPassword, setPassword) {
   const form = document.getElementById('change-password-form');
   const errorDiv = document.getElementById('unlock-error');

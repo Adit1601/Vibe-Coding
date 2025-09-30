@@ -20,7 +20,9 @@
   ],
   "author": "Your Name",
   "license": "MIT",
-  "devDependencies": {},
+  "devDependencies": {
+    "eslint": "^8.0.0"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/yourusername/selective-site-access.git"
@@ -32,4 +34,4 @@
   "engines": {
     "node": ">=14.0.0"
   }
-}
+} 

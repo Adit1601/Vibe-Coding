@@ -24,6 +24,14 @@ function getTimeMs(value, unit) {
 }
 
 // Generate a smart default name based on the URL
+/**
+* Generate a default name based on the given URL.
+* @example
+* generateDefaultName('https://www.youtube.com/watch?v=dQw4w9WgXcQ')
+* // 'YouTube Video'
+* @param {string} url - The URL from which to generate the default name.
+* @returns {string} Returns a site-specific name or defaults to the domain name.
+**/
 function generateDefaultName(url) {
   try {
     const urlObj = new URL(url);
@@ -341,6 +349,13 @@ let currentSiteDomain = '';
 let currentSiteUrl = '';
 
 // Get current active tab and update quick action buttons
+/**
+ * Updates the UI elements to reflect the current active site's information.
+ * @example
+ * updateCurrentSiteInfo()
+ * No return value; updates UI elements based on the current tab's URL.
+ * @returns {void} No return value; modifies UI elements directly.
+ */
 function updateCurrentSiteInfo() {
   if (el.currentSiteInfo && el.quickBlockBtn && el.quickAllowlistBtn) {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -504,6 +519,13 @@ el.debugRulesBtn?.addEventListener('click', () => {
 });
 
 // Backup/Restore
+/**
+ * Updates the allowlist and the unified blocking rules by rendering allowlist URLs into HTML elements with functional buttons.
+ * @example
+ * updateLists()
+ * // Updates the DOM elements to display current allowlist URLs along with interaction buttons
+ * @returns {void} This function does not return a value.
+ */
 function updateLists() {
   // Update allowlist URLs
   storage.getLists(({ allowlistUrls }) => {
@@ -665,6 +687,14 @@ function updateLists() {
   });
 }
 
+/**
+ * Updates the list of unified blocking rules displayed in the UI.
+ * @example
+ * updateUnifiedBlockingRules()
+ * // Updates the UI with the current set of blocking rules.
+ * @param {void} None - This function does not take any arguments.
+ * @returns {void} Updates the HTML content of the blocking rules list.
+ */
 function updateUnifiedBlockingRules() {
   const rulesList = document.getElementById('blocking-rules-list');
   if (!rulesList) return;
@@ -704,6 +734,27 @@ function updateUnifiedBlockingRules() {
   });
 }
 
+/**
+ * Creates and returns a styled DOM element representing a rule with interactive controls.
+ * @example
+ * createRuleElement({
+ *   id: '123',
+ *   type: 'domain',
+ *   pattern: 'example.com',
+ *   description: 'Example Domain',
+ *   enabled: true,
+ *   createdAt: '2023-10-01T00:00:00Z'
+ * });
+ * // Returns a DOM element for the specified rule.
+ * @param {Object} rule - The rule object containing details for display.
+ * @param {string} rule.id - The unique identifier for the rule.
+ * @param {string} rule.type - The type of the rule, such as 'domain', 'path', 'regex', or 'url'.
+ * @param {string} rule.pattern - The pattern string of the rule.
+ * @param {string} rule.description - A brief description of the rule.
+ * @param {boolean} rule.enabled - A boolean indicating if the rule is currently enabled.
+ * @param {string} [rule.createdAt] - The creation date of the rule in ISO string format.
+ * @returns {HTMLDivElement} A div element styled according to the rule properties, with interactive buttons for enabling/disabling and removing the rule.
+ */
 function createRuleElement(rule) {
   const div = document.createElement('div');
   div.className = 'rule-item';
@@ -805,6 +856,14 @@ function createRuleElement(rule) {
   return div;
 }
 
+/**
+ * Removes an URL from the allowlist at the specified index.
+ * @example
+ * removeAllowlistUrl(2)
+ * // Removes the URL at index 2 from the allowlist and updates the UI.
+ * @param {number} idx - The index of the URL to be removed from the allowlist.
+ * @returns {void} No return value.
+ */
 function removeAllowlistUrl(idx) {
   storage.getLists(({ allowlistUrls }) => {
     const removed = allowlistUrls.splice(idx, 1);
@@ -831,6 +890,15 @@ function removeAllowlistUrl(idx) {
   });
 }
 
+/**
+ * Edits the name of an allowlist entry at a specified index if it is in object format.
+ * @example
+ * editAllowlistName(0, "New Name")
+ * // Displays a toast notification and updates the list if successful
+ * @param {number} idx - The index of the entry in the allowlistUrls array to be renamed.
+ * @param {string} newName - The new name to set for the allowlist entry.
+ * @returns {void} Does not return a value, but updates the entry name and the UI if successful.
+ */
 function editAllowlistName(idx, newName) {
   storage.getLists(({ allowlistUrls }) => {
     const item = allowlistUrls[idx];
@@ -850,6 +918,14 @@ function editAllowlistName(idx, newName) {
 }
 
 // Update blocked sites list
+/**
+ * Updates the blocked sites list in the user interface based on provided pattern rules.
+ * @example
+ * updateBlockedSitesList([{ enabled: true, type: 'domain', pattern: 'facebook.com' }])
+ * // Updates the UI with blocked sites organized by domain.
+ * @param {Array} patternRules - Array of pattern rule objects containing details such as whether the rule is enabled, type of rule (domain, path, url, regex), and pattern.
+ * @returns {void} This function modifies the UI directly and does not return a value.
+ */
 function updateBlockedSitesList(patternRules) {
   const blockedSitesList = document.getElementById('blocked-sites-list');
   if (!blockedSitesList) return;
@@ -1115,6 +1191,14 @@ document.getElementById('cancel-change-password').addEventListener('click', () =
 });
 
 // Show generated password to user (persistent until user acknowledges)
+/**
+* Displays the generated password to the user with a message encouraging them to save it.
+* @example
+* showGeneratedPassword('examplePassword123')
+* // Displays the password in an HTML element with id 'current-password-display'.
+* @param {string} password - The generated password to be displayed to the user.
+* @returns {void} Does not return a value.
+*/
 function showGeneratedPassword(password) {
   const passwordDisplay = document.getElementById('current-password-display');
   if (passwordDisplay) {
@@ -1143,6 +1227,15 @@ function showGeneratedPassword(password) {
 }
 
 // Wake up service worker and ensure it's ready
+/**
+ * Ensures the service worker is ready by sending a 'ping' message and retries if necessary.
+ * @example
+ * ensureServiceWorkerReady((isReady) => console.log(isReady), 3)
+ * // Output: true or false
+ * @param {Function} callback - A callback function to be executed once the service worker readiness status is determined.
+ * @param {number} [retries=3] - The number of times to retry checking if the service worker is ready before giving up.
+ * @returns {void} No return value; the status is provided via the callback.
+ */
 function ensureServiceWorkerReady(callback, retries = 3) {
   chrome.runtime.sendMessage({ type: 'ping' }, (response) => {
     if (chrome.runtime.lastError) {
@@ -1161,6 +1254,13 @@ function ensureServiceWorkerReady(callback, retries = 3) {
 }
 
 // Initialization
+/**
+ * Initializes the popup and sets up the necessary services and UI elements.
+ * @example
+ * initialize();
+ * // Logs initialization steps and shows necessary UI adjustments
+ * @returns {void} Does not return a value.
+ */
 async function initialize() {
   console.log('Initializing popup...');
   
