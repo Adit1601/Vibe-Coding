@@ -272,7 +272,7 @@ export function globToSafeRegex(globPattern) {
   regexPattern = regexPattern.replace(/\?/g, '.');
   
   // Anchor the pattern
-  regexPattern = '^' + regexPattern + '$';
+  regexPattern = `^${  regexPattern  }$`;
   
   // Validate the resulting pattern
   const validation = validateRegexSafety(regexPattern);

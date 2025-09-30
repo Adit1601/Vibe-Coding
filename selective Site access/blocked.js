@@ -26,11 +26,11 @@ document.addEventListener('DOMContentLoaded', function() {
   for (let i = 0; i < 8; i++) {
     const particle = document.createElement('div');
     particle.className = 'particle';
-    particle.style.width = Math.random() * 10 + 5 + 'px';
+    particle.style.width = `${Math.random() * 10 + 5  }px`;
     particle.style.height = particle.style.width;
-    particle.style.left = Math.random() * 100 + '%';
-    particle.style.top = Math.random() * 100 + '%';
-    particle.style.animationDelay = Math.random() * 6 + 's';
+    particle.style.left = `${Math.random() * 100  }%`;
+    particle.style.top = `${Math.random() * 100  }%`;
+    particle.style.animationDelay = `${Math.random() * 6  }s`;
     body.appendChild(particle);
   }
   

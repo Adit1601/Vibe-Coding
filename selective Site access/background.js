@@ -27,10 +27,10 @@ function patternToNetRequestRule(patternRule, ruleId) {
       
       // Ensure the pattern works correctly for Chrome's urlFilter
       if (!urlFilter.startsWith('*')) {
-        urlFilter = '*' + urlFilter;
+        urlFilter = `*${  urlFilter}`;
       }
       if (!urlFilter.endsWith('*')) {
-        urlFilter = urlFilter + '*';
+        urlFilter = `${urlFilter  }*`;
       }
       
       condition = {
@@ -98,7 +98,7 @@ function validatePatternRule(patternRule) {
     try {
       new RegExp(patternRule.pattern);
     } catch (e) {
-      return { valid: false, error: 'Invalid regex pattern: ' + e.message };
+      return { valid: false, error: `Invalid regex pattern: ${  e.message}` };
     }
   }
   
@@ -644,7 +644,7 @@ function refreshBlockedTabs() {
         
         // Check if hostname matches any domain pattern (including subdomains)
         for (const domain of domainsWithPatterns) {
-          if (hostname === domain || hostname.endsWith('.' + domain)) {
+          if (hostname === domain || hostname.endsWith(`.${  domain}`)) {
             return true;
           }
         }
@@ -671,7 +671,7 @@ function refreshBlockedTabs() {
           ];
           
           return commonBlockedDomains.some(domain => 
-            hostname === domain || hostname.endsWith('.' + domain)
+            hostname === domain || hostname.endsWith(`.${  domain}`)
           );
         }
         

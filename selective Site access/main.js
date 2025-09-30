@@ -953,29 +953,23 @@ function updateBlockedSitesList(patternRules) {
         // Extract domain from path patterns
         if (rule.pattern.includes('youtube.com')) {
           domain = 'youtube.com';
-          displayName = 'YouTube (Path: ' + rule.pattern + ')';
-        } else if (rule.pattern.includes('facebook.com')) {
+          displayName = 'YouTu`YouTube (Path: ${  rule.pattern  })`    } else if (rule.pattern.includes('facebook.com')) {
           domain = 'facebook.com';
-          displayName = 'Facebook (Path: ' + rule.pattern + ')';
-        } else {
+          displayName = 'Faceb`Facebook (Path: ${  rule.pattern  })`    } else {
           domain = 'path-pattern';
-          displayName = 'Path Pattern: ' + rule.pattern;
-        }
+          displayName = 'Path `Path Pattern: ${  rule.pattern}`    }
         break;
       case 'url':
         try {
           const urlObj = new URL(rule.pattern);
           domain = urlObj.hostname;
-          displayName = domain + ' (URL: ' + rule.pattern + ')';
-        } catch (e) {
+          displayName = domain`${domain  } (URL: ${  rule.pattern  })`    } catch (e) {
           domain = 'url-pattern';
-          displayName = 'URL Pattern: ' + rule.pattern;
-        }
+          displayName = 'URL P`URL Pattern: ${  rule.pattern}`    }
         break;
       case 'regex':
         domain = 'regex-pattern';
-        displayName = 'Regex Pattern: ' + rule.pattern;
-        break;
+        displayName = 'Regex`Regex Pattern: ${  rule.pattern}`    break;
     }
     
     if (!domainGroups[domain]) {
@@ -1040,8 +1034,7 @@ function updateBlockedSitesList(patternRules) {
         chrome.tabs.create({ url: domain });
       } else if (domain.includes('.com') || domain.includes('.org') || domain.includes('.net')) {
         // For domain patterns, open the domain
-        chrome.tabs.create({ url: 'https://' + domain });
-      } else {
+        chrome.tabs.create({ url: 'https`https://${  domain}`     } else {
         // For other patterns, show a message
         ui.showToast('Cannot directly visit this type of pattern. Modify your rules to allow access.', true);
       }
@@ -1057,8 +1050,7 @@ function updateBlockedSitesList(patternRules) {
       ruleDesc.style.fontSize = '0.85em';
       ruleDesc.style.opacity = '0.8';
       ruleDesc.style.marginBottom = '4px';
-      ruleDesc.textContent = '• ' + displayName;
-      domainDiv.appendChild(ruleDesc);
+      ruleDesc.textContent = '• ' +`• ${  displayName}`  domainDiv.appendChild(ruleDesc);
     });
     
     blockedSitesList.appendChild(domainDiv);
