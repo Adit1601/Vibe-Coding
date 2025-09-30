@@ -596,6 +596,9 @@
             <button type="submit">Unlock</button>
             <button type="button" id="show-change-password">Change Password</button>
           </div>
+          <div style="text-align: center; margin-top: 10px;">
+            <button type="button" id="forgot-password-btn" class="text-button" style="background: none; border: none; color: var(--accent); cursor: pointer; text-decoration: underline; font-size: 0.9em;">Forgot Password?</button>
+          </div>
         </form>
         <form id="change-password-form" style="display:none; margin-top:10px;">
           <div style="font-size: 0.9em; color: #e3f2fd; margin-bottom: 12px;">
@@ -619,6 +622,25 @@
           <button type="submit">Set Password</button>
           <button type="button" id="cancel-change-password">Cancel</button>
         </form>
+        
+        <!-- Forgot Password Form -->
+        <form id="forgot-password-form" style="display:none; margin-top:10px;">
+          <div style="font-size: 0.9em; color: #e3f2fd; margin-bottom: 12px;">
+            <p style="color: var(--yellow); margin-bottom: 10px;"><strong>⚠️ Warning:</strong> Resetting your password will generate a new secure password.</p>
+            <p>This will <strong>preserve</strong> all your settings and lists.</p>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <p id="reset-password-display" style="background-color: var(--card-bg); padding: 10px; border-radius: 4px; margin-bottom: 10px; display: none;">
+              <strong>Your new password is:</strong><br>
+              <span id="new-password-value" style="font-family: monospace; font-size: 1.1em; color: var(--yellow);"></span>
+            </p>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button type="button" id="confirm-reset-password">Reset Password</button>
+            <button type="button" id="cancel-reset-password">Cancel</button>
+          </div>
+        </form>
+        
         <div id="unlock-error" style="color:#e74c3c;margin-top:8px;font-size:0.95em;"></div>
       </div>
     </div>

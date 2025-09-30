@@ -199,6 +199,30 @@ export class PasswordManager {
   getPasswordStrength(password) {
     return validatePasswordStrength(password);
   }
+  
+  /**
+   * Generate a new password and set it (for password reset)
+   * @returns {Promise<string>} The newly generated password
+   */
+  async generateNewPassword() {
+    const newPassword = generateSecurePassword(12);
+    
+    return new Promise((resolve, reject) => {
+      chrome.storage.sync.set({
+        [STORAGE_KEYS.password]: newPassword,
+        [STORAGE_KEYS.passwordSet]: false, // Mark as generated password
+        [STORAGE_KEYS.passwordDisplayed]: true // Mark as displayed to user
+      }, () => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(`${ERROR_CODES.STORAGE_ERROR}: ${chrome.runtime.lastError.message}`));
+          return;
+        }
+        
+        console.log('🔐 Password reset successfully with new generated password');
+        resolve(newPassword);
+      });
+    });
+  }
 }
 
 // Export singleton instance

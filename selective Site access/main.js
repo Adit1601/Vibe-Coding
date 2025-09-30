@@ -1114,6 +1114,67 @@ document.getElementById('cancel-change-password').addEventListener('click', () =
   auth.checkAndShowSecurityWarning(storage.isDefaultPassword);
 });
 
+// Forgot Password functionality
+document.getElementById('forgot-password-btn').addEventListener('click', () => {
+  document.getElementById('unlock-form').style.display = 'none';
+  document.getElementById('forgot-password-form').style.display = 'block';
+  document.getElementById('unlock-error').textContent = '';
+  
+  // Hide security warning when showing forgot password form
+  const securityWarning = document.getElementById('security-warning');
+  if (securityWarning) {
+    securityWarning.style.display = 'none';
+  }
+});
+
+document.getElementById('cancel-reset-password').addEventListener('click', () => {
+  document.getElementById('forgot-password-form').style.display = 'none';
+  document.getElementById('unlock-form').style.display = 'block';
+  document.getElementById('unlock-error').textContent = '';
+  document.getElementById('reset-password-display').style.display = 'none';
+  
+  // Show security warning again if using default password
+  auth.checkAndShowSecurityWarning(storage.isDefaultPassword);
+});
+
+document.getElementById('confirm-reset-password').addEventListener('click', async () => {
+  try {
+    // Generate a new secure password
+    const newPassword = await passwordManager.generateNewPassword();
+    
+    // Display the new password
+    document.getElementById('new-password-value').textContent = newPassword;
+    document.getElementById('reset-password-display').style.display = 'block';
+    
+    // Change the button text to indicate completion
+    const confirmButton = document.getElementById('confirm-reset-password');
+    confirmButton.textContent = 'Password Reset Successfully';
+    confirmButton.disabled = true;
+    
+    // Add success message
+    const errorDiv = document.getElementById('unlock-error');
+    errorDiv.textContent = 'Your password has been reset. Please save the new password.';
+    errorDiv.style.color = '#4caf50'; // Success color
+    
+    setTimeout(() => {
+      // Allow the user time to save the password
+      document.getElementById('forgot-password-form').style.display = 'none';
+      document.getElementById('unlock-form').style.display = 'block';
+      document.getElementById('unlock-error').textContent = '';
+      document.getElementById('unlock-error').style.color = '#e74c3c'; // Reset to error color
+      document.getElementById('reset-password-display').style.display = 'none';
+      confirmButton.textContent = 'Reset Password';
+      confirmButton.disabled = false;
+      
+      // Focus on the password field
+      document.getElementById('unlock-password').focus();
+    }, 10000); // Give user 10 seconds to save the password
+  } catch (error) {
+    const errorDiv = document.getElementById('unlock-error');
+    errorDiv.textContent = 'Error resetting password: ' + error.message;
+  }
+});
+
 // Show generated password to user (persistent until user acknowledges)
 function showGeneratedPassword(password) {
   const passwordDisplay = document.getElementById('current-password-display');
