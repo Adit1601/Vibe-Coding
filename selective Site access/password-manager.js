@@ -111,7 +111,8 @@ export class PasswordManager {
           
           chrome.storage.sync.set({
             [STORAGE_KEYS.password]: defaultPassword,
-            [STORAGE_KEYS.passwordSet]: false // Indicates this is still the generated default
+            [STORAGE_KEYS.passwordSet]: false, // Indicates this is still the generated default
+            [STORAGE_KEYS.passwordDisplayed]: true // Mark as displayed to user (consistent with generateNewPassword)
           }, () => {
             if (chrome.runtime.lastError) {
               reject(new Error(`${ERROR_CODES.STORAGE_ERROR}: ${chrome.runtime.lastError.message}`));
