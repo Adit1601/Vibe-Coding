@@ -1,135 +1,111 @@
-# Chrome Extension Development Guide
+# Selective Site Access - AI Coding Guidelines
 
-## Architecture Overview
+This document provides essential knowledge for AI agents to effectively contribute to the Selective Site Access Chrome extension.
 
-This is a **Manifest V3 Chrome Extension** for selective site blocking with advanced pattern-based rules. The extension uses a **modular ES6 architecture** with clear separation of concerns:
+## Project Architecture
 
-### Core Components
-- **`background.js`**: Service worker managing `declarativeNetRequest` rules and storage operations
-- **`content.js`**: Injected script handling SPA navigation and real-time blocking with context recovery
-- **`main.js`**: Popup UI controller with form handling and user interactions
-- **`constants.js`**: Centralized configuration (storage keys, rule priorities, validation patterns)
+The extension follows a modular architecture using Chrome's Manifest V3:
 
-### Key Architecture Patterns
+- **Core Components:**
+  - `background.js`: Service worker handling rule management and blocking logic
+  - `content.js`: Fallback content script for blocking in edge cases
+  - `main.js`: UI logic for the popup interface
+  - `popup.html`: Extension popup UI
+  - `blocked.html/js`: Custom blocking page
 
-**Rule-Based Blocking System**:
-```javascript
-// Rule priorities (constants.js)
-RULE_PRIORITIES: {
-  ALLOW: 100,    // Allowlist URLs override everything
-  PATTERN: 50,   // Pattern-based blocking (path, regex, URL)
-  BLOCK: 10      // Simple domain blocks
-}
-```
+- **Utility Modules:**
+  - `constants.js`: Centralized configuration and constants
+  - `storage.js`: Chrome storage API abstractions
+  - `auth.js`: Password protection system
+  - `password-manager.js`: Password generation and validation
+  - `regex-utils.js`: Safe regex handling with ReDoS protection
+  - `error-handler.js`: Error management and recovery
 
-**Content Script Recovery Mechanism** (handles extension reload scenarios):
-```javascript
-// content.js implements automatic recovery from extension context invalidation
-function attemptRecovery() {
-  // Limited retry attempts with exponential backoff
-  // Reinitializes SPA monitoring after extension reload
-}
-```
+## Key Workflows
 
-**Storage Architecture**:
-- Chrome Sync Storage for cross-device settings
-- Modular storage operations in `storage.js`
-- Consistent error handling via `error-handler.js`
+### Rule Management
 
-## Development Workflow
-
-### Essential Commands
-```bash
-# Lint and format code
-npm run lint
-npm run lint:fix
-
-# Load extension in Chrome
-# Navigate to chrome://extensions/, enable Developer mode, click "Load unpacked"
-
-# Debug background script
-# Visit chrome://extensions/, click "Service Worker" link under extension
-
-# Test extension functionality
-# Open browser console and run: chrome.runtime.sendMessage({type: 'debugRules'})
-```
-
-### Testing Patterns
-- Use `test-extension.js` in browser console for comprehensive testing
-- Test SPA navigation on YouTube for content script behavior
-- Verify rule priorities with overlapping patterns
-- Test extension reload scenarios with multiple tabs open
-
-## Key Development Conventions
-
-### Error Handling
-- All async operations use try-catch with centralized error handling
-- Custom error classes: `ExtensionError`, `StorageError`, `RegexSecurityError`
-- User feedback via toast notifications in UI (`ui.js`)
+1. Rules are stored in Chrome's sync storage
+2. Generated into `declarativeNetRequest` rules on application
+3. Protected by a mutex system to prevent race conditions
+4. Four pattern types supported: domain, URL, path, and regex
 
 ### Security Patterns
-- **ReDoS Protection**: All regex patterns validated via `regex-utils.js`
-- **Web Crypto API**: Secure password generation in `password-manager.js`
-- **Input Validation**: Comprehensive sanitization using `VALIDATION_REGEX` constants
 
-### Storage Conventions
+1. Password protection with auto-generated secure passwords
+2. Password display persistence until acknowledged
+3. All operations stay local - no remote APIs
+4. Safe regex execution with timeouts to prevent ReDoS
+
+### UI/UX Design
+
+1. Popup interface with current site detection
+2. Quick actions for blocking/allowing current site
+3. Pattern rule management with type-specific interfaces
+4. Pause functionality with countdown timer
+
+## Development Patterns
+
+### Storage Operations
+
 ```javascript
-// Always use constants for storage keys
 import { STORAGE_KEYS } from './constants.js';
-chrome.storage.sync.get([STORAGE_KEYS.allowlistUrls], callback);
 
-// Pattern for storage operations with error handling
-export function getLists(callback) {
-  chrome.storage.sync.get([STORAGE_KEYS.allowlistUrls], (data) => {
-    if (chrome.runtime.lastError) {
-      handleError(new StorageError('getLists', chrome.runtime.lastError.message));
-      callback({ allowlistUrls: [] }); // Always provide fallback
-      return;
-    }
-    callback({ allowlistUrls: data[STORAGE_KEYS.allowlistUrls] || DEFAULT_SETTINGS.allowlistUrls });
-  });
-}
-```
+// Read pattern
+chrome.storage.sync.get([STORAGE_KEYS.patternRules], (data) => {
+  const rules = data[STORAGE_KEYS.patternRules] || [];
+  // Process rules
+});
 
-### Content Script Patterns
-- **SPA Navigation**: Multiple detection methods (MutationObserver, popstate, pushState/replaceState)
-- **Context Validation**: Always check `isExtensionContextValid()` before Chrome API calls
-- **Recovery Logic**: Automatic reinitialization on extension reload with retry limits
-
-## Integration Points
-
-### Chrome APIs Used
-- `declarativeNetRequest`: Rule-based blocking (background.js)
-- `storage.sync`: Cross-device persistence
-- `tabs`: Active tab detection and refresh operations
-- `alarms`: Pause timer functionality
-
-### Inter-Component Communication
-```javascript
-// Background ↔ Popup communication
-chrome.runtime.sendMessage({ type: 'addPatternRule', rule: patternRule });
-
-// Background ↔ Content Script messaging patterns
-chrome.tabs.query({active: true}, (tabs) => {
-  chrome.tabs.sendMessage(tabs[0].id, { type: 'checkBlocking' });
+// Write pattern
+chrome.storage.sync.set({ 
+  [STORAGE_KEYS.patternRules]: updatedRules 
 });
 ```
 
-### Critical File Dependencies
-- `constants.js` → All modules (centralized config)
-- `error-handler.js` → All modules (consistent error handling)
-- `regex-utils.js` → Background script (safe pattern validation)
-- `password-manager.js` → Auth system (secure password operations)
+### Rule Conversion
 
-## Debugging Guidelines
+Pattern rules are converted to Chrome `declarativeNetRequest` rules with type-specific handling:
 
-### Common Issues
-- **"Extension context invalidated"**: Content script loses connection on extension reload - recovery mechanism handles this
-- **Rule ID conflicts**: Background script uses randomized integer IDs for `declarativeNetRequest`
-- **SPA navigation bypass**: Content script monitors multiple navigation types for coverage
+```javascript
+// Example: Convert domain pattern
+{
+  id: ruleId,
+  priority: RULE_PRIORITIES.PATTERN,
+  action: { 
+    type: 'redirect', 
+    redirect: { extensionPath: CONFIG.BLOCKED_PAGE_PATH } 
+  },
+  condition: {
+    urlFilter: `||${pattern}^`,
+    resourceTypes: ["main_frame"]
+  }
+}
+```
 
-### Debug Tools
-- Background script console: Check rule generation and storage operations
-- Content script console: Monitor SPA navigation detection and blocking logic
-- Extension popup: Test UI interactions and immediate feedback
-- `chrome://extensions/`: Monitor service worker status and reload behavior
+## Integration Points
+
+1. **Chrome API Dependencies:**
+   - `declarativeNetRequest` API for rule management
+   - `storage.sync` for cross-device settings
+   - `tabs` API for tab operations
+   - `alarms` API for pause functionality
+
+2. **Extension Communication:**
+   - Background to content script via `chrome.tabs.sendMessage()`
+   - Content to background via `chrome.runtime.sendMessage()`
+   - Popup to background via direct messaging
+
+## Testing & Debugging
+
+1. Use the built-in debug tools via the "🔍 Debug Rules" button
+2. Test pattern rules with simple patterns before adding complexity
+3. Ensure proper race condition handling when updating rules
+4. Verify pause functionality with Chrome alarms API
+
+## Common Pitfalls
+
+1. Race conditions when updating rules - use mutex pattern
+2. Regex pattern safety - always use `safeRegexTest()` from `regex-utils.js`
+3. Password security - follow existing validation pattern
+4. Rule limits - keep pattern count under 100 for optimal performance
