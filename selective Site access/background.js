@@ -334,6 +334,14 @@ function updateDynamicRules(callback) {
   
   ruleUpdateInProgress = true;
   
+  /**
+  * Processes pending callback functions sequentially.
+  * @example
+  * processCallbacks(() => console.log("Callback executed"))
+  * // Executes the provided callback and any queued callbacks.
+  * @param {function} callback - The callback function to be executed immediately.
+  * @returns {void} This function does not return a value.
+  **/
   const completeUpdate = () => {
     ruleUpdateInProgress = false;
     
@@ -461,6 +469,15 @@ function updateDynamicRulesWithNewRules(newRules, callback) {
     }
   });
   
+  /**
+  * Adds new network request rules dynamically and executes a callback upon completion.
+  * @example
+  * addNewRules([{id: 1, action: {type: "block"}, condition: {urlFilter: "example.com"}}], () => { console.log('Rules updated'); })
+  * // Logs: "Successfully added 1 new rules", or logs errors if rules failed to add.
+  * @param {Array} rules - Array of rule objects to be added, which define how network requests should be handled.
+  * @param {Function} callback - Optional callback function called after attempting to add rules, regardless of success or failure.
+  * @returns {void} This function does not return a value.
+  **/
   function addNewRules(rules, callback) {
     if (rules.length === 0) {
       console.log('No rules to add');
@@ -597,6 +614,14 @@ function refreshBlockedTabs() {
       }
     });
 
+    /**
+     * Determines whether a URL should trigger a refresh based on various patterns and rules.
+     * @example
+     * shouldRefreshTab("http://example.com");
+     * false
+     * @param {string} url - The URL to be checked against the refresh conditions.
+     * @returns {boolean} Returns true if the URL should trigger a refresh, otherwise false.
+     */
     const mightBeBlocked = (url) => {
       // Don't refresh allowlisted URLs
       if (isAllowlisted(url)) {
