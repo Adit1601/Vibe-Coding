@@ -6,6 +6,11 @@ export function showLockScreen() {
   document.getElementById('lock-screen').style.display = 'block';
   document.getElementById('main-ui').style.display = 'none';
   document.getElementById('pause-section').style.display = 'none';
+  
+  // Update statistics display when showing lock screen
+  if (window.updateStatisticsDisplay) {
+    window.updateStatisticsDisplay();
+  }
 }
 
 // Show the main UI (after unlock)

@@ -21,10 +21,102 @@
         --button-gradient-hover: linear-gradient(135deg, #1565c0 0%, #0d47a1 100%);
         --resume-gradient: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
         --resume-gradient-hover: linear-gradient(135deg, #f7931e 0%, #e67e22 100%);
+        --success-bg: rgba(76, 175, 80, 0.1);
+        --error-bg: rgba(231, 76, 60, 0.1);
+        --neutral-bg: rgba(200, 200, 200, 0.1);
       }
       
       * {
         box-sizing: border-box;
+      }
+      
+      /* Statistics Styles */
+      .stats-section {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+      }
+      
+      .stats-row {
+        display: flex;
+        justify-content: space-around;
+        margin-bottom: 15px;
+      }
+      
+      .stats-item {
+        text-align: center;
+        padding: 0 10px;
+      }
+      
+      .stats-title {
+        font-size: 0.8em;
+        opacity: 0.7;
+        margin-bottom: 5px;
+      }
+      
+      .stats-value {
+        font-size: 1.8em;
+        font-weight: 600;
+        color: var(--accent);
+      }
+      
+      .stats-label {
+        font-size: 0.7em;
+        opacity: 0.7;
+      }
+      
+      .weekly-stats {
+        margin-top: 10px;
+      }
+      
+      .weekly-stats-title {
+        font-size: 0.8em;
+        opacity: 0.7;
+        margin-bottom: 8px;
+        text-align: center;
+      }
+      
+      .weekly-stats-grid {
+        display: flex;
+        justify-content: space-between;
+      }
+      
+      .day-item {
+        text-align: center;
+        width: 30px;
+      }
+      
+      .day-label {
+        font-size: 0.7em;
+        margin-bottom: 4px;
+      }
+      
+      .day-status {
+        height: 20px;
+        width: 20px;
+        margin: 0 auto;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7em;
+      }
+      
+      .day-success {
+        background: var(--success-bg);
+        color: var(--success);
+      }
+      
+      .day-failure {
+        background: var(--error-bg);
+        color: var(--error);
+      }
+      
+      .day-neutral {
+        background: var(--neutral-bg);
+        color: var(--fg);
+        opacity: 0.5;
       }
       
       body { 
@@ -580,6 +672,30 @@
     <div id="lock-screen">
       <div class="lock-card">
         <h2>Extension Locked</h2>
+        
+        <!-- Statistics Display Section -->
+        <div class="stats-section">
+          <div class="stats-row">
+            <div class="stats-item">
+              <div class="stats-title">Current Streak</div>
+              <div class="stats-value" id="streak-count">0</div>
+              <div class="stats-label">days</div>
+            </div>
+            <div class="stats-item">
+              <div class="stats-title">Today's Usage</div>
+              <div class="stats-value"><span id="pause-count">0</span>/<span id="pause-threshold">5</span></div>
+              <div class="stats-label">pauses</div>
+            </div>
+          </div>
+          
+          <div class="weekly-stats">
+            <div class="weekly-stats-title">Weekly Progress</div>
+            <div class="weekly-stats-grid" id="weekly-stats-grid">
+              <!-- Will be populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+        
         <div id="security-warning" style="display:none; background: rgba(255, 152, 0, 0.1); border: 1px solid #ff9800; border-radius: 6px; padding: 12px; margin-bottom: 16px; color: #ffcc02;">
           <div style="font-size: 0.95em; font-weight: 500; margin-bottom: 4px;">🔒 Security Notice</div>
           <div style="font-size: 0.85em; line-height: 1.4; margin-bottom: 6px;">You're using a generated default password. For better security, please change it using the "Change Password" button below.</div>
@@ -751,6 +867,27 @@
           <div style="font-style: italic; opacity: 0.7; padding: 20px; text-align: center;">
             Loading blocked sites...
           </div>
+        </div>
+      </div>
+      
+      <!-- Statistics Settings Section -->
+      <div class="card">
+        <h2>Statistics Settings</h2>
+        <p style="font-size: 0.9em; opacity: 0.8; margin-bottom: 15px;">
+          Configure your pause threshold for maintaining streaks and monitoring usage.
+        </p>
+        <div class="stats-config-form">
+          <div style="margin-bottom: 15px;">
+            <label for="pause-threshold-input" style="font-size: 0.9em; display: block; margin-bottom: 5px;">
+              Pause Threshold (per day):
+              <span style="font-size: 0.9em; opacity: 0.7;">(Streak breaks if exceeded)</span>
+            </label>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <input type="number" id="pause-threshold-input" min="1" max="50" style="width: 80px;">
+              <button id="save-threshold-btn" class="small-button">Save</button>
+            </div>
+          </div>
+          <div id="threshold-message" style="font-size: 0.9em; margin-top: 5px; color: var(--success);"></div>
         </div>
       </div>
       

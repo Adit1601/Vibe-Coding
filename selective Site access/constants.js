@@ -26,7 +26,14 @@ export const STORAGE_KEYS = {
 
   // Analytics and tracking
   blockCount: 'blockCount',
-  lastBlockedUrl: 'lastBlockedUrl'
+  lastBlockedUrl: 'lastBlockedUrl',
+  
+  // Statistics and streaks
+  pauseCountToday: 'pauseCountToday',
+  lastCountDate: 'lastCountDate',
+  streakCount: 'streakCount',
+  weeklyStats: 'weeklyStats',
+  pauseThreshold: 'pauseThreshold'
 };
 
 /**
@@ -96,5 +103,20 @@ export const DEFAULT_SETTINGS = {
   pauseStart: 0,
   blockCount: 0,
   allowlistUrls: [],
-  patternRules: []
+  patternRules: [],
+  
+  // Statistics defaults
+  pauseCountToday: 0,
+  lastCountDate: '', // Will be initialized with today's date
+  streakCount: 0,
+  weeklyStats: {
+    0: false, // Sunday
+    1: false, // Monday
+    2: false, // Tuesday
+    3: false, // Wednesday
+    4: false, // Thursday
+    5: false, // Friday
+    6: false  // Saturday
+  },
+  pauseThreshold: 5 // Default threshold
 };

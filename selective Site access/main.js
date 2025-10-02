@@ -3,6 +3,7 @@ import * as storage from './storage.js';
 import * as ui from './ui.js';
 import * as auth from './auth.js';
 import { passwordManager } from './password-manager.js';
+import { STORAGE_KEYS, DEFAULT_SETTINGS } from './constants.js';
 
 // Utility functions
 function isValidDomain(domain) {
@@ -1233,6 +1234,9 @@ async function initialize() {
       return;
     }
     
+    // Initialize statistics tracking (make sure we have today's date set)
+    initializeStatisticsTracking();
+    
     // Initialize password manager first
     try {
       const defaultPassword = await passwordManager.initialize();
@@ -1263,7 +1267,180 @@ async function initialize() {
     updateCurrentSiteInfo();
     ui.setDarkMode();
     ui.showPauseCountdown(storage.getPauseUntil, storage.getPauseStart);
+    
+    // Initialize statistics display and settings
+    initializeStatistics();
   });
+}
+
+/**
+ * Initialize statistics tracking system
+ */
+function initializeStatisticsTracking() {
+  // Get current statistics state
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+  
+  chrome.storage.sync.get([
+    STORAGE_KEYS.lastCountDate,
+    STORAGE_KEYS.pauseThreshold,
+    STORAGE_KEYS.weeklyStats
+  ], (data) => {
+    // Initialize with defaults if necessary
+    const updates = {};
+    let needsUpdate = false;
+    
+    // Make sure we have a threshold set
+    if (!data[STORAGE_KEYS.pauseThreshold]) {
+      updates[STORAGE_KEYS.pauseThreshold] = DEFAULT_SETTINGS.pauseThreshold;
+      needsUpdate = true;
+    }
+    
+    // Make sure we have weekly stats structure
+    if (!data[STORAGE_KEYS.weeklyStats]) {
+      updates[STORAGE_KEYS.weeklyStats] = DEFAULT_SETTINGS.weeklyStats;
+      needsUpdate = true;
+    }
+    
+    // Make sure we have a date set
+    if (!data[STORAGE_KEYS.lastCountDate]) {
+      updates[STORAGE_KEYS.lastCountDate] = today;
+      updates[STORAGE_KEYS.pauseCountToday] = 0;
+      needsUpdate = true;
+    }
+    
+    // Update if necessary
+    if (needsUpdate) {
+      chrome.storage.sync.set(updates, () => {
+        console.log('Statistics tracking initialized');
+      });
+    }
+  });
+}
+
+/**
+ * Initialize statistics display and settings
+ */
+function initializeStatistics() {
+  // Update lock screen statistics display
+  updateStatisticsDisplay();
+  
+  // Set up statistics settings handlers
+  const thresholdInput = document.getElementById('pause-threshold-input');
+  const saveThresholdBtn = document.getElementById('save-threshold-btn');
+  
+  // Load current threshold value
+  storage.getStatistics((stats) => {
+    if (thresholdInput) thresholdInput.value = stats.threshold;
+  });
+  
+  // Save threshold button
+  if (saveThresholdBtn) {
+    saveThresholdBtn.addEventListener('click', () => {
+      if (!thresholdInput) return;
+      
+      const threshold = parseInt(thresholdInput.value, 10);
+      if (isNaN(threshold) || threshold < 1 || threshold > 50) {
+        showThresholdMessage('Please enter a valid number between 1 and 50', true);
+        return;
+      }
+      
+      storage.setPauseThreshold(threshold, () => {
+        showThresholdMessage('Threshold saved successfully!');
+        // Update statistics display
+        updateStatisticsDisplay();
+      });
+    });
+  }
+}
+
+/**
+ * Update statistics display on lock screen
+ */
+// Export to window for use in auth.js
+window.updateStatisticsDisplay = function() {
+  storage.getStatistics((stats) => {
+    // Update counts
+    const streakCountElement = document.getElementById('streak-count');
+    const pauseCountElement = document.getElementById('pause-count');
+    const pauseThresholdElement = document.getElementById('pause-threshold');
+    
+    if (streakCountElement) streakCountElement.textContent = stats.streakCount;
+    if (pauseCountElement) pauseCountElement.textContent = stats.pauseCount;
+    if (pauseThresholdElement) pauseThresholdElement.textContent = stats.threshold;
+    
+    // Update weekly grid
+    updateWeeklyGrid(stats.weeklyStats);
+  });
+}
+
+/**
+ * Create and update the weekly statistics grid
+ * @param {Object} weeklyStats - Weekly statistics object
+ */
+function updateWeeklyGrid(weeklyStats) {
+  const gridContainer = document.getElementById('weekly-stats-grid');
+  if (!gridContainer) return;
+  
+  // Clear existing content
+  gridContainer.innerHTML = '';
+  
+  // Day names
+  const dayNames = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const today = new Date().getDay(); // 0-6 for Sunday-Saturday
+  
+  // Create day items
+  for (let i = 0; i < 7; i++) {
+    const dayItem = document.createElement('div');
+    dayItem.className = 'day-item';
+    
+    const dayLabel = document.createElement('div');
+    dayLabel.className = 'day-label';
+    dayLabel.textContent = dayNames[i];
+    
+    const dayStatus = document.createElement('div');
+    dayStatus.className = 'day-status';
+    
+    // Determine day status
+    if (i === today) {
+      // Today is in progress
+      dayStatus.className += ' day-neutral';
+      dayStatus.textContent = '?';
+    } else if (weeklyStats[i] === true) {
+      // Success day
+      dayStatus.className += ' day-success';
+      dayStatus.textContent = '✓';
+    } else if (weeklyStats[i] === false) {
+      // Failed day
+      dayStatus.className += ' day-failure';
+      dayStatus.textContent = '✗';
+    } else {
+      // No data yet
+      dayStatus.className += ' day-neutral';
+      dayStatus.textContent = '-';
+    }
+    
+    // Append to container
+    dayItem.appendChild(dayLabel);
+    dayItem.appendChild(dayStatus);
+    gridContainer.appendChild(dayItem);
+  }
+}
+
+/**
+ * Show threshold message
+ * @param {string} message - Message to show
+ * @param {boolean} isError - Whether message is an error
+ */
+function showThresholdMessage(message, isError = false) {
+  const messageElement = document.getElementById('threshold-message');
+  if (!messageElement) return;
+  
+  messageElement.textContent = message;
+  messageElement.style.color = isError ? 'var(--error)' : 'var(--success)';
+  
+  setTimeout(() => {
+    messageElement.textContent = '';
+  }, 3000);
 }
 
 document.addEventListener('DOMContentLoaded', initialize);
